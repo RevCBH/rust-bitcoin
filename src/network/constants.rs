@@ -1,6 +1,8 @@
-// Rust Bitcoin Library
-// Written in 2014 by
-//   Andrew Poelstra <apoelstra@wpsoftware.net>
+// Rust Handshake Library
+// Written in 2021 by
+//   Bennett Hoffman <benn.hoffman@gmail.com>
+//
+// Based on the Rust Bitcoin Library by Andrew Poelstra <apoelstra@wpsoftware.net>
 //
 // To the extent possible under law, the author(s) have dedicated all
 // copyright and related and neighboring rights to this software to
@@ -14,7 +16,7 @@
 
 //! Network constants
 //!
-//! This module provides various constants relating to the Bitcoin network
+//! This module provides various constants relating to the Handshake network
 //! protocol, such as protocol versioning and magic header bytes.
 //!
 //! The [`Network`][1] type implements the [`Decodable`][2] and
@@ -28,10 +30,10 @@
 //! # Example: encoding a network's magic bytes
 //!
 //! ```rust
-//! use bitcoin::network::constants::Network;
-//! use bitcoin::consensus::encode::serialize;
+//! use handshake::network::constants::Network;
+//! use handshake::consensus::encode::serialize;
 //!
-//! let network = Network::Bitcoin;
+//! let network = Network::Handshake;
 //! let bytes = serialize(&network.magic());
 //!
 //! assert_eq!(&bytes[..], &[0xF9, 0xBE, 0xB4, 0xD9]);
@@ -57,20 +59,27 @@ use consensus::encode::{self, Encodable, Decodable};
 /// 70001 - Support bloom filter messages `filterload`, `filterclear` `filteradd`, `merkleblock` and FILTERED_BLOCK inventory type
 /// 60002 - Support `mempool` message
 /// 60001 - Support `pong` message and nonce in `ping` message
+// TODO - correct this for handshake
 pub const PROTOCOL_VERSION: u32 = 70001;
 
 user_enum! {
     /// The cryptocurrency to act on
     #[derive(Copy, PartialEq, Eq, PartialOrd, Ord, Clone, Hash, Debug)]
     pub enum Network {
-        /// Classic Bitcoin
-        Bitcoin <-> "bitcoin",
-        /// Bitcoin's testnet
+        /// Classic Handshake
+        Mainnet <-> "mainnet",
+        /// Handshake's testnet
         Testnet <-> "testnet",
-        /// Bitcoin's signet
-        Signet <-> "signet",
-        /// Bitcoin's regtest
+        /// Handshake's signet
+        Simnet <-> "simnet",
+        /// Handshake's regtest
         Regtest <-> "regtest"
+    }
+}
+
+impl Default for Network {
+    fn default() -> Self {
+        return Network::Regtest
     }
 }
 
@@ -80,18 +89,18 @@ impl Network {
     /// # Examples
     ///
     /// ```rust
-    /// use bitcoin::network::constants::Network;
+    /// use handshake::network::constants::Network;
     ///
-    /// assert_eq!(Some(Network::Bitcoin), Network::from_magic(0xD9B4BEF9));
+    /// assert_eq!(Some(Network::Mainnet), Network::from_magic(0x5B6EF2D3));
     /// assert_eq!(None, Network::from_magic(0xFFFFFFFF));
     /// ```
     pub fn from_magic(magic: u32) -> Option<Network> {
         // Note: any new entries here must be added to `magic` below
         match magic {
-            0xD9B4BEF9 => Some(Network::Bitcoin),
-            0x0709110B => Some(Network::Testnet),
-            0x40CF030A => Some(Network::Signet),
-            0xDAB5BFFA => Some(Network::Regtest),
+            0x5B6EF2D3 => Some(Network::Mainnet),
+            0xB1520DD2 => Some(Network::Testnet),
+            0x0E648EDC => Some(Network::Simnet),
+            0xAE3895CF => Some(Network::Regtest),
             _ => None
         }
     }
@@ -102,18 +111,18 @@ impl Network {
     /// # Examples
     ///
     /// ```rust
-    /// use bitcoin::network::constants::Network;
+    /// use handshake::network::constants::Network;
     ///
-    /// let network = Network::Bitcoin;
-    /// assert_eq!(network.magic(), 0xD9B4BEF9);
+    /// let network = Network::Mainnet;
+    /// assert_eq!(network.magic(), 0x5B6EF2D3);
     /// ```
     pub fn magic(self) -> u32 {
         // Note: any new entries here must be added to `from_magic` above
         match self {
-            Network::Bitcoin => 0xD9B4BEF9,
-            Network::Testnet => 0x0709110B,
-            Network::Signet  => 0x40CF030A,
-            Network::Regtest => 0xDAB5BFFA,
+            Network::Mainnet => 0x5B6EF2D3,
+            Network::Testnet => 0xB1520DD2,
+            Network::Simnet  => 0x0E648EDC,
+            Network::Regtest => 0xAE3895CF,
         }
     }
 }
@@ -122,6 +131,7 @@ impl Network {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ServiceFlags(u64);
 
+// TODO - revise for handshake
 impl ServiceFlags {
     /// NONE means no services supported.
     pub const NONE: ServiceFlags = ServiceFlags(0);
@@ -297,51 +307,51 @@ mod tests {
     #[test]
     fn serialize_test() {
         assert_eq!(
-            serialize(&Network::Bitcoin.magic()),
-            &[0xf9, 0xbe, 0xb4, 0xd9]
+            serialize(&Network::Mainnet.magic()),
+            &[0xd3, 0xf2, 0x6e, 0x5b]
         );
         assert_eq!(
             serialize(&Network::Testnet.magic()),
-            &[0x0b, 0x11, 0x09, 0x07]
+            &[0xd2, 0x0d, 0x52, 0xb1]
         );
         assert_eq!(
-            serialize(&Network::Signet.magic()),
-            &[0x0a, 0x03, 0xcf, 0x40]
+            serialize(&Network::Simnet.magic()),
+            &[0xdc, 0x8e, 0x64, 0x0e]
         );
         assert_eq!(
             serialize(&Network::Regtest.magic()),
-            &[0xfa, 0xbf, 0xb5, 0xda]
+            &[0xcf, 0x95, 0x38, 0xae]
         );
 
         assert_eq!(
-            deserialize(&[0xf9, 0xbe, 0xb4, 0xd9]).ok(),
-            Some(Network::Bitcoin.magic())
+            deserialize(&[0xd3, 0xf2, 0x6e, 0x5b]).ok(),
+            Some(Network::Mainnet.magic())
         );
         assert_eq!(
-            deserialize(&[0x0b, 0x11, 0x09, 0x07]).ok(),
+            deserialize(&[0xd2, 0x0d, 0x52, 0xb1]).ok(),
             Some(Network::Testnet.magic())
         );
         assert_eq!(
-            deserialize(&[0x0a, 0x03, 0xcf, 0x40]).ok(),
-            Some(Network::Signet.magic())
+            deserialize(&[0xdc, 0x8e, 0x64, 0x0e]).ok(),
+            Some(Network::Simnet.magic())
         );
         assert_eq!(
-            deserialize(&[0xfa, 0xbf, 0xb5, 0xda]).ok(),
+            deserialize(&[0xcf, 0x95, 0x38, 0xae]).ok(),
             Some(Network::Regtest.magic())
         );
     }
 
     #[test]
     fn string_test() {
-        assert_eq!(Network::Bitcoin.to_string(), "bitcoin");
+        assert_eq!(Network::Mainnet.to_string(), "mainnet");
         assert_eq!(Network::Testnet.to_string(), "testnet");
         assert_eq!(Network::Regtest.to_string(), "regtest");
-        assert_eq!(Network::Signet.to_string(), "signet");
+        assert_eq!(Network::Simnet.to_string(), "simnet");
 
-        assert_eq!("bitcoin".parse::<Network>().unwrap(), Network::Bitcoin);
+        assert_eq!("mainnet".parse::<Network>().unwrap(), Network::Mainnet);
         assert_eq!("testnet".parse::<Network>().unwrap(), Network::Testnet);
         assert_eq!("regtest".parse::<Network>().unwrap(), Network::Regtest);
-        assert_eq!("signet".parse::<Network>().unwrap(), Network::Signet);
+        assert_eq!("simnet".parse::<Network>().unwrap(), Network::Simnet);
         assert!("fakenet".parse::<Network>().is_err());
     }
 

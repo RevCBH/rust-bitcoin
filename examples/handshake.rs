@@ -1,15 +1,15 @@
-extern crate bitcoin;
+extern crate handshake;
 
 use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, process};
 use std::io::Write;
 
-use bitcoin::consensus::encode;
-use bitcoin::network::{address, constants, message, message_network};
-use bitcoin::network::stream_reader::StreamReader;
-use bitcoin::secp256k1;
-use bitcoin::secp256k1::rand::Rng;
+use handshake::consensus::encode;
+use handshake::network::{address, constants, message, message_network};
+use handshake::network::stream_reader::StreamReader;
+use handshake::secp256k1;
+use handshake::secp256k1::rand::Rng;
 
 fn main() {
     // This example establishes a connection to a Bitcoin node, sends the intial
@@ -30,7 +30,7 @@ fn main() {
     let version_message = build_version_message(address);
 
     let first_message = message::RawNetworkMessage {
-        magic: constants::Network::Bitcoin.magic(),
+        magic: constants::Network::Mainnet.magic(),
         payload: version_message,
     };
 
@@ -50,7 +50,7 @@ fn main() {
                     println!("Received version message: {:?}", reply.payload);
 
                     let second_message = message::RawNetworkMessage {
-                        magic: constants::Network::Bitcoin.magic(),
+                        magic: constants::Network::Mainnet.magic(),
                         payload: message::NetworkMessage::Verack,
                     };
 

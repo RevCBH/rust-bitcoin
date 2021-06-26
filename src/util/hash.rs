@@ -25,7 +25,7 @@ use consensus::encode::Encodable;
 /// into the allocated slice.
 ///
 /// In most cases, you'll want to use [bitcoin_merkle_root] instead.
-pub fn bitcoin_merkle_root_inline<T>(data: &mut [T]) -> T
+pub fn handshake_merkle_root_inline<T>(data: &mut [T]) -> T
     where T: Hash + Encodable,
           <T as Hash>::Engine: io::Write,
 {
@@ -46,11 +46,11 @@ pub fn bitcoin_merkle_root_inline<T>(data: &mut [T]) -> T
         data[idx] = T::from_engine(encoder);
     }
     let half_len = data.len() / 2 + data.len() % 2;
-    bitcoin_merkle_root_inline(&mut data[0..half_len])
+    handshake_merkle_root_inline(&mut data[0..half_len])
 }
 
 /// Calculates the merkle root of an iterator of hashes.
-pub fn bitcoin_merkle_root<T, I>(mut iter: I) -> T
+pub fn handshake_merkle_root<T, I>(mut iter: I) -> T
     where T: Hash + Encodable,
           <T as Hash>::Engine: io::Write,
           I: ExactSizeIterator<Item = T>,
@@ -73,5 +73,5 @@ pub fn bitcoin_merkle_root<T, I>(mut iter: I) -> T
         hash2.consensus_encode(&mut encoder).unwrap();
         alloc.push(T::from_engine(encoder));
     }
-    bitcoin_merkle_root_inline(&mut alloc)
+    handshake_merkle_root_inline(&mut alloc)
 }

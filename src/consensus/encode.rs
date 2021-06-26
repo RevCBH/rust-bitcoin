@@ -32,6 +32,7 @@
 use core::{fmt, mem, u32, convert::From};
 use std::borrow::Cow;
 use std::error;
+use hashes::blake2b;
 use hashes::hex::ToHex;
 
 use hashes::{sha256d, Hash};
@@ -82,6 +83,8 @@ pub enum Error {
     ParseFailed(&'static str),
     /// Unsupported Segwit flag
     UnsupportedSegwitFlag(u8),
+    /// Invalid covenant
+    InvalidCovenant(u8),
 }
 
 impl fmt::Display for Error {
@@ -100,6 +103,8 @@ impl fmt::Display for Error {
             Error::ParseFailed(ref e) => write!(f, "parse failed: {}", e),
             Error::UnsupportedSegwitFlag(ref swflag) => write!(f,
                 "unsupported segwit version: {}", swflag),
+            Error::InvalidCovenant(ref covenant) => write!(f,
+                "invalid covenant: {}", covenant),
         }
     }
 }
@@ -115,7 +120,8 @@ impl error::Error for Error {
             | Error::NonMinimalVarInt
             | Error::UnknownNetworkMagic(..)
             | Error::ParseFailed(..)
-            | Error::UnsupportedSegwitFlag(..) => None,
+            | Error::UnsupportedSegwitFlag(..) 
+            | Error::InvalidCovenant(..) => None,
         }
     }
 }
@@ -525,6 +531,7 @@ impl_array!(8);
 impl_array!(10);
 impl_array!(12);
 impl_array!(16);
+impl_array!(24);
 impl_array!(32);
 impl_array!(33);
 
@@ -748,6 +755,18 @@ impl Encodable for sha256d::Hash {
 }
 
 impl Decodable for sha256d::Hash {
+    fn consensus_decode<D: io::Read>(d: D) -> Result<Self, Error> {
+        Ok(Self::from_inner(<<Self as Hash>::Inner>::consensus_decode(d)?))
+    }
+}
+
+impl Encodable for blake2b::Hash {
+    fn consensus_encode<W: io::Write>(&self, writer: W) -> Result<usize, io::Error> {
+        self.into_inner().consensus_encode(writer)
+    }
+}
+
+impl Decodable for blake2b::Hash {
     fn consensus_decode<D: io::Read>(d: D) -> Result<Self, Error> {
         Ok(Self::from_inner(<<Self as Hash>::Inner>::consensus_decode(d)?))
     }

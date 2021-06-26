@@ -126,7 +126,7 @@ impl BlockFilter {
         let mut out = Cursor::new(Vec::new());
         {
             let mut writer = BlockFilterWriter::new(&mut out, block);
-            writer.add_output_scripts();
+            // writer.add_output_scripts();
             writer.add_input_scripts(script_for_coin)?;
             writer.finish()?;
         }
@@ -163,15 +163,15 @@ impl<'a> BlockFilterWriter<'a> {
     }
 
     /// Add output scripts of the block - excluding OP_RETURN scripts
-    pub fn add_output_scripts(&mut self) {
-        for transaction in &self.block.txdata {
-            for output in &transaction.output {
-                if !output.script_pubkey.is_op_return() {
-                    self.add_element(output.script_pubkey.as_bytes());
-                }
-            }
-        }
-    }
+    // pub fn add_output_scripts(&mut self) {
+    //     for transaction in &self.block.txdata {
+    //         for output in &transaction.output {
+    //             if !output.script_pubkey.is_op_return() {
+    //                 self.add_element(output.script_pubkey.as_bytes());
+    //             }
+    //         }
+    //     }
+    // }
 
     /// Add consumed output scripts of a block to filter
     pub fn add_input_scripts<M>(&mut self, script_for_coin: M) -> Result<(), Error>

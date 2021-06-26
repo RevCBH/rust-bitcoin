@@ -60,10 +60,6 @@ impl Global {
     /// Create a Global from an unsigned transaction, error if not unsigned
     pub fn from_unsigned_tx(tx: Transaction) -> Result<Self, psbt::Error> {
         for txin in &tx.input {
-            if !txin.script_sig.is_empty() {
-                return Err(Error::UnsignedTxHasScriptSigs);
-            }
-
             if !txin.witness.is_empty() {
                 return Err(Error::UnsignedTxHasScriptWitnesses);
             }

@@ -43,8 +43,6 @@ pub enum Error {
     InvalidProprietaryKey,
     /// Keys within key-value map should never be duplicated.
     DuplicateKey(raw::Key),
-    /// The scriptSigs for the unsigned transaction must be empty.
-    UnsignedTxHasScriptSigs,
     /// The scriptWitnesses for the unsigned transaction must be empty.
     UnsignedTxHasScriptWitnesses,
     /// A PSBT must have an unsigned transaction.
@@ -88,7 +86,6 @@ impl fmt::Display for Error {
             Error::NonStandardSigHashType(ref sht) => write!(f, "non-standard sighash type: {}", sht),
             Error::InvalidMagic => f.write_str("invalid magic"),
             Error::InvalidSeparator => f.write_str("invalid separator"),
-            Error::UnsignedTxHasScriptSigs => f.write_str("the unsigned transaction has script sigs"),
             Error::UnsignedTxHasScriptWitnesses => f.write_str("the unsigned transaction has script witnesses"),
             Error::MustHaveUnsignedTx => {
                 f.write_str("partially signed transactions must have an unsigned transaction")

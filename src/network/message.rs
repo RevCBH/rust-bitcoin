@@ -389,6 +389,7 @@ mod test {
     use consensus::encode::{deserialize, deserialize_partial, serialize};
     use hashes::hex::FromHex;
     use hashes::sha256d::Hash;
+    use hashes::blake2b;
     use hashes::Hash as HashTrait;
     use network::address::{Address, AddrV2, AddrV2Message};
     use super::message_network::{Reject, RejectReason, VersionMessage};
@@ -399,6 +400,10 @@ mod test {
 
     fn hash(slice: [u8;32]) -> Hash {
         Hash::from_slice(&slice).unwrap()
+    }
+
+    fn hash_blake(slice: [u8;32]) -> blake2b::Hash {
+        blake2b::Hash::from_slice(&slice).unwrap()
     }
 
     #[test]
@@ -413,11 +418,11 @@ mod test {
             NetworkMessage::Version(version_msg),
             NetworkMessage::Verack,
             NetworkMessage::Addr(vec![(45, Address::new(&([123,255,000,100], 833).into(), ServiceFlags::NETWORK))]),
-            NetworkMessage::Inv(vec![Inventory::Block(hash([8u8; 32]).into())]),
-            NetworkMessage::GetData(vec![Inventory::Transaction(hash([45u8; 32]).into())]),
+            NetworkMessage::Inv(vec![Inventory::Block(hash_blake([8u8; 32]).into())]),
+            NetworkMessage::GetData(vec![Inventory::Transaction(hash_blake([45u8; 32]).into())]),
             NetworkMessage::NotFound(vec![Inventory::Error]),
-            NetworkMessage::GetBlocks(GetBlocksMessage::new(vec![hash([1u8; 32]).into(), hash([4u8; 32]).into()], hash([5u8; 32]).into())),
-            NetworkMessage::GetHeaders(GetHeadersMessage::new(vec![hash([10u8; 32]).into(), hash([40u8; 32]).into()], hash([50u8; 32]).into())),
+            NetworkMessage::GetBlocks(GetBlocksMessage::new(vec![hash_blake([1u8; 32]).into(), hash_blake([4u8; 32]).into()], hash_blake([5u8; 32]).into())),
+            NetworkMessage::GetHeaders(GetHeadersMessage::new(vec![hash_blake([10u8; 32]).into(), hash_blake([40u8; 32]).into()], hash_blake([50u8; 32]).into())),
             NetworkMessage::MemPool,
             NetworkMessage::Tx(tx),
             NetworkMessage::Block(block),
@@ -426,12 +431,12 @@ mod test {
             NetworkMessage::GetAddr,
             NetworkMessage::Ping(15),
             NetworkMessage::Pong(23),
-            NetworkMessage::GetCFilters(GetCFilters{filter_type: 2, start_height: 52, stop_hash: hash([42u8; 32]).into()}),
-            NetworkMessage::CFilter(CFilter{filter_type: 7, block_hash: hash([25u8; 32]).into(), filter: vec![1,2,3]}),
-            NetworkMessage::GetCFHeaders(GetCFHeaders{filter_type: 4, start_height: 102, stop_hash: hash([47u8; 32]).into()}),
-            NetworkMessage::CFHeaders(CFHeaders{filter_type: 13, stop_hash: hash([53u8; 32]).into(), previous_filter_header: hash([12u8; 32]).into(), filter_hashes: vec![hash([4u8; 32]).into(), hash([12u8; 32]).into()]}),
-            NetworkMessage::GetCFCheckpt(GetCFCheckpt{filter_type: 17, stop_hash: hash([25u8; 32]).into()}),
-            NetworkMessage::CFCheckpt(CFCheckpt{filter_type: 27, stop_hash: hash([77u8; 32]).into(), filter_headers: vec![hash([3u8; 32]).into(), hash([99u8; 32]).into()]}),
+            NetworkMessage::GetCFilters(GetCFilters{filter_type: 2, start_height: 52, stop_hash: hash_blake([42u8; 32]).into()}),
+            NetworkMessage::CFilter(CFilter{filter_type: 7, block_hash: hash_blake([25u8; 32]).into(), filter: vec![1,2,3]}),
+            NetworkMessage::GetCFHeaders(GetCFHeaders{filter_type: 4, start_height: 102, stop_hash: hash_blake([47u8; 32]).into()}),
+            NetworkMessage::CFHeaders(CFHeaders{filter_type: 13, stop_hash: hash_blake([53u8; 32]).into(), previous_filter_header: hash_blake([12u8; 32]).into(), filter_hashes: vec![hash_blake([4u8; 32]).into(), hash_blake([12u8; 32]).into()]}),
+            NetworkMessage::GetCFCheckpt(GetCFCheckpt{filter_type: 17, stop_hash: hash_blake([25u8; 32]).into()}),
+            NetworkMessage::CFCheckpt(CFCheckpt{filter_type: 27, stop_hash: hash_blake([77u8; 32]).into(), filter_headers: vec![hash_blake([3u8; 32]).into(), hash_blake([99u8; 32]).into()]}),
             NetworkMessage::Alert(vec![45,66,3,2,6,8,9,12,3,130]),
             NetworkMessage::Reject(Reject{message: CommandString::try_from("Test reject").unwrap(), ccode: RejectReason::Duplicate, reason: "Cause".into(), hash: hash([255u8; 32])}),
             NetworkMessage::FeeFilter(1000),

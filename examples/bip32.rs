@@ -1,15 +1,15 @@
-extern crate bitcoin;
+extern crate handshake;
 
 use std::{env, process};
 use std::str::FromStr;
 
-use bitcoin::secp256k1::Secp256k1;
-use bitcoin::util::ecdsa::PrivateKey;
-use bitcoin::util::bip32::ExtendedPrivKey;
-use bitcoin::util::bip32::ExtendedPubKey;
-use bitcoin::util::bip32::DerivationPath;
-use bitcoin::util::bip32::ChildNumber;
-use bitcoin::util::address::Address;
+use handshake::secp256k1::Secp256k1;
+use handshake::util::ecdsa::PrivateKey;
+use handshake::util::bip32::ExtendedPrivKey;
+use handshake::util::bip32::ExtendedPubKey;
+use handshake::util::bip32::DerivationPath;
+use handshake::util::bip32::ChildNumber;
+use handshake::util::address::Address;
 
 fn main() {
     // This example derives root xprv
