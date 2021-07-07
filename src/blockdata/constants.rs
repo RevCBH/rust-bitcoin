@@ -24,8 +24,8 @@ use std::str::FromStr;
 
 use blockdata::block::{Block, BlockHeader};
 use blockdata::transaction::Transaction;
-use hash_types::WitnessMerkleNode;
-use hashes::blake2b;
+use hash_types::{TxMerkleNode, WitnessMerkleNode};
+// use hashes::blake2b;
 use network::constants::Network;
 use util::uint::Uint256;
 
@@ -108,30 +108,7 @@ fn handshake_genesis_tx() -> Transaction {
         address,
         covenant: Default::default(),
     });
-    // Inputs
-    // let in_script = script::Builder::new()
-    //     .push_scriptint(486604799)
-    //     .push_scriptint(4)
-    //     .push_slice(b"The Times 03/Jan/2009 Chancellor on brink of second bailout for banks")
-    //     .into_script();
-    // ret.input.push(TxIn {
-    //     previous_output: OutPoint::null(),
-    //     script_sig: in_script,
-    //     sequence: MAX_SEQUENCE,
-    //     witness: vec![],
-    // });
 
-    // // Outputs
-    // let out_script = script::Builder::new()
-    //     .push_slice(&Vec::from_hex("04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f").unwrap())
-    //     .push_opcode(opcodes::all::OP_CHECKSIG)
-    //     .into_script();
-    // ret.output.push(TxOut {
-    //     value: 50 * COIN_VALUE,
-    //     script_pubkey: out_script,
-    // });
-
-    // end
     ret
 }
 
@@ -139,8 +116,9 @@ fn handshake_genesis_tx() -> Transaction {
 pub fn genesis_block(network: Network) -> Block {
     let decoded_tx = handshake_genesis_tx();
     let decoded_txs = vec![decoded_tx];
-    let hash: blake2b::Hash = decoded_txs[0].txid().into();
-    let merkle_root = hash.into();
+    let merkle_root =
+        TxMerkleNode::from_str("8e4c9756fef2ad10375f360e0560fcc7587eb5223ddf8cd7c7e06e60a1140b15")
+            .unwrap();
     let witness_root = WitnessMerkleNode::from_str(
         "1a2c60b9439206938f8d7823782abdb8b211a57431e9c9b6a6365d8d42893351",
     )
@@ -248,7 +226,7 @@ mod test {
     fn mainnet_genesis_full_block() {
         let gen = genesis_block(Network::Mainnet);
 
-        assert_eq!(gen.header.version, 1);
+        assert_eq!(gen.header.version, 0);
         assert_eq!(gen.header.prev_blockhash, Default::default());
         assert_eq!(
             format!("{:x}", gen.header.merkle_root),
@@ -266,36 +244,36 @@ mod test {
     #[test]
     fn testnet_genesis_full_block() {
         let gen = genesis_block(Network::Testnet);
-        assert_eq!(gen.header.version, 1);
+        assert_eq!(gen.header.version, 0);
         assert_eq!(gen.header.prev_blockhash, Default::default());
         assert_eq!(
             format!("{:x}", gen.header.merkle_root),
-            "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b".to_string()
+            "8e4c9756fef2ad10375f360e0560fcc7587eb5223ddf8cd7c7e06e60a1140b15".to_string()
         );
-        assert_eq!(gen.header.time, 1296688602);
+        assert_eq!(gen.header.time, 1580745079);
         assert_eq!(gen.header.bits, 0x1d00ffff);
-        assert_eq!(gen.header.nonce, 414098458);
+        assert_eq!(gen.header.nonce, 0x00000000);
         assert_eq!(
             format!("{:x}", gen.header.block_hash()),
-            "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943".to_string()
+            "b1520dd24372f82ec94ebf8cf9d9b037d419c4aa3575d05dec70aedd1b427901".to_string()
         );
     }
 
     #[test]
-    fn signet_genesis_full_block() {
+    fn simnet_genesis_full_block() {
         let gen = genesis_block(Network::Simnet);
-        assert_eq!(gen.header.version, 1);
+        assert_eq!(gen.header.version, 0);
         assert_eq!(gen.header.prev_blockhash, Default::default());
         assert_eq!(
             format!("{:x}", gen.header.merkle_root),
-            "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b".to_string()
+            "8e4c9756fef2ad10375f360e0560fcc7587eb5223ddf8cd7c7e06e60a1140b15".to_string()
         );
-        assert_eq!(gen.header.time, 1598918400);
-        assert_eq!(gen.header.bits, 0x1e0377ae);
-        assert_eq!(gen.header.nonce, 52613770);
+        assert_eq!(gen.header.time, 1580745081);
+        assert_eq!(gen.header.bits, 0x207fffff);
+        assert_eq!(gen.header.nonce, 0x00000000);
         assert_eq!(
             format!("{:x}", gen.header.block_hash()),
-            "00000008819873e925422c1ff0f99f7cc9bbb232af63a077a480a3633bee1ef6".to_string()
+            "0e648edc9cddb179014658061ea3f666a45cf44881877ae506e6babefbef6992".to_string()
         );
     }
 }

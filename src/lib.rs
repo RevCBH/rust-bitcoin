@@ -49,6 +49,7 @@ extern crate num;
 #[macro_use]
 extern crate num_derive;
 extern crate blake2;
+extern crate sha3;
 
 #[cfg(feature="bitcoinconsensus")] extern crate bitcoinconsensus;
 #[cfg(feature = "serde")] #[macro_use] extern crate serde;
@@ -76,6 +77,9 @@ pub mod consensus;
 pub mod hash_types;
 pub mod policy;
 
+#[cfg(test)]
+mod test_helpers;
+
 pub use hash_types::*;
 pub use blockdata::block::Block;
 pub use blockdata::block::BlockHeader;
@@ -94,6 +98,9 @@ pub use util::amount::Amount;
 pub use util::amount::Denomination;
 pub use util::amount::SignedAmount;
 pub use util::merkleblock::MerkleBlock;
+
+#[cfg(test)]
+pub(crate) use test_helpers::tests::{fixture_json, fixture_hex};
 
 pub use util::ecdsa;
 pub use util::schnorr;

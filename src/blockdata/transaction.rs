@@ -23,24 +23,23 @@
 //! This module provides the structures and functions needed to support transactions.
 //!
 
+use core::{default::Default, fmt, str};
 use io;
-use core::{fmt, str, default::Default};
 use std::error;
 
-use hashes::{self, Hash, blake2b};
 use hashes::hex::FromHex;
+use hashes::{self, blake2b, Hash};
 
-use util::endian;
-use blockdata::constants::WITNESS_SCALE_FACTOR;
-use blockdata::script::Script;
-use consensus::{encode, Decodable, Encodable};
-use consensus::encode::MAX_VEC_SIZE;
-use hash_types::{SigHash, Txid, Wtxid};
-use VarInt;
-use Address;
 use blake2::digest::{Update, VariableOutput};
-
-use crate::consensus::encode::ReadExt;
+use blockdata::constants::WITNESS_SCALE_FACTOR;
+use blockdata::covenant::Covenant;
+use blockdata::script::Script;
+use consensus::encode::MAX_VEC_SIZE;
+use consensus::{encode, Decodable, Encodable};
+use hash_types::{SigHash, Txid, Wtxid};
+use util::endian;
+use Address;
+use VarInt;
 
 /// A reference to a transaction output
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
@@ -128,7 +127,9 @@ impl fmt::Display for ParseOutPointError {
             ParseOutPointError::Vout(ref e) => write!(f, "error parsing vout: {}", e),
             ParseOutPointError::Format => write!(f, "OutPoint not in <txid>:<vout> format"),
             ParseOutPointError::TooLong => write!(f, "vout should be at most 10 digits"),
-            ParseOutPointError::VoutNotCanonical => write!(f, "no leading zeroes or + allowed in vout part"),
+            ParseOutPointError::VoutNotCanonical => {
+                write!(f, "no leading zeroes or + allowed in vout part")
+            }
         }
     }
 }
@@ -159,7 +160,8 @@ impl ::core::str::FromStr for OutPoint {
     type Err = ParseOutPointError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.len() > 75 { // 64 + 1 + 10
+        if s.len() > 75 {
+            // 64 + 1 + 10
             return Err(ParseOutPointError::TooLong);
         }
         let find = s.find(':');
@@ -172,7 +174,7 @@ impl ::core::str::FromStr for OutPoint {
         }
         Ok(OutPoint {
             txid: Txid::from_hex(&s[..colon]).map_err(ParseOutPointError::Txid)?,
-            vout: parse_vout(&s[colon+1..])?,
+            vout: parse_vout(&s[colon + 1..])?,
         })
     }
 }
@@ -193,7 +195,7 @@ pub struct TxIn {
     /// Encodable/Decodable, as it is (de)serialized at the end of the full
     /// Transaction. It *is* (de)serialized with the rest of the TxIn in other
     /// (de)serialization routines.
-    pub witness: Vec<Vec<u8>>
+    pub witness: Vec<Vec<u8>>,
 }
 
 impl Default for TxIn {
@@ -205,73 +207,6 @@ impl Default for TxIn {
         }
     }
 }
-
-/// Handshake covenant types
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, FromPrimitive, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[repr(u8)]
-pub enum CovenantType {
-    /// NONE
-    None = 0,
-    /// CLAIM
-    Claim = 1,
-    /// OPEN
-    Open = 2,
-    /// BID
-    Bid = 3,
-    /// REVEAL
-    Reveal = 4,
-    /// REDEEM
-    Redeem = 5,
-    /// REGISTER
-    Register = 6,
-    /// Update
-    Update = 7,
-    /// Renew
-    Renew = 8,
-    /// Transfer
-    Transfer = 9,
-    /// Finalize
-    Finalize = 10,
-    /// Revoke
-    Revoke = 11,
-}
-
-impl Encodable for CovenantType {
-    fn consensus_encode<W: io::Write>(&self, writer: W) -> Result<usize, io::Error> {
-        let value: u8 = *self as u8;
-        return Ok(value.consensus_encode(writer)?)
-    }
-}
-
-impl Decodable for CovenantType {
-    fn consensus_decode<D: io::Read>(mut d: D) -> Result<Self, encode::Error> {
-        let value = d.read_u8()?;
-        return num::FromPrimitive::from_u8(value).ok_or(encode::Error::InvalidCovenant(value));
-    }
-}
-
-/// A serializable covenant
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Covenant {
-    /// The covenant type
-    pub covenant_type: CovenantType,
-    /// The covenant items
-    pub items: Vec<Vec<u8>>
-}
-
-impl Default for Covenant {
-    fn default() -> Self {
-        Covenant {
-            covenant_type: CovenantType::None,
-            items: vec![],
-        }
-    }
-}
-
-impl_consensus_encoding!(Covenant, covenant_type, items);
-
 /// A transaction output, which defines new coins to be created from old ones.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -287,7 +222,11 @@ pub struct TxOut {
 // This is used as a "null txout" in consensus signing code
 impl Default for TxOut {
     fn default() -> TxOut {
-        TxOut { value: 0xffffffffffffffff, address: Default::default(), covenant: Default::default() }
+        TxOut {
+            value: 0xffffffffffffffff,
+            address: Default::default(),
+            covenant: Default::default(),
+        }
     }
 }
 
@@ -345,7 +284,14 @@ impl Transaction {
         let cloned_tx = Transaction {
             version: self.version,
             lock_time: self.lock_time,
-            input: self.input.iter().map(|txin| TxIn { witness: vec![], .. *txin }).collect(),
+            input: self
+                .input
+                .iter()
+                .map(|txin| TxIn {
+                    witness: vec![],
+                    ..*txin
+                })
+                .collect(),
             output: self.output.clone(),
         };
         cloned_tx.txid().into()
@@ -384,10 +330,10 @@ impl Transaction {
             for i in c.items.iter() {
                 sz += size_var_int(i.len()) + i.len();
             }
-            
+
             return sz;
         }
-        
+
         let mut base: usize = 4;
         let mut witness: usize = 0;
 
@@ -399,30 +345,31 @@ impl Transaction {
 
         base += size_var_int(self.output.len());
         for o in self.output.iter() {
-            base += 8 + 1 + /* 1+ */ o.address.payload.size_in_bytes() + get_covenant_size(&o.covenant);
+            base +=
+                8 + 1 + /* 1+ */ o.address.payload.size_in_bytes() + get_covenant_size(&o.covenant);
         }
 
         base += 4;
 
         // Compute hashes
         // This has an extra 0x00 and 0x01 byte before the data
-        
+
         // 0 0 0 0 0 1 1 166 236 66
         // should be
         // 0 0 0 0 1 166 236 66
         let raw = encode::serialize(self);
 
         // Normal data
-        let ndata = raw.get(0 .. base).unwrap();
+        let ndata = raw.get(0..base).unwrap();
 
         // Witness data
-        let wdata = raw.get(base .. (base + witness)).unwrap();
+        let wdata = raw.get(base..(base + witness)).unwrap();
 
         let mut final_blake = blake2::VarBlake2b::new(32).expect("creating blake");
         let mut part_blake = blake2::VarBlake2b::new(32).expect("creating blake");
 
         part_blake.update(ndata);
-        part_blake.finalize_variable_reset(|res| final_blake.update(res) );
+        part_blake.finalize_variable_reset(|res| final_blake.update(res));
 
         part_blake.update(wdata);
         part_blake.finalize_variable_reset(|res| final_blake.update(res));
@@ -455,17 +402,18 @@ impl Transaction {
         _script_pubkey: &Script, // TODO - remove
         sighash_type: U,
     ) -> Result<(), encode::Error> {
-        let sighash_type : u32 = sighash_type.into();
-        assert!(input_index < self.input.len());  // Panic on OOB
+        let sighash_type: u32 = sighash_type.into();
+        assert!(input_index < self.input.len()); // Panic on OOB
 
-        let (sighash, anyone_can_pay) = SigHashType::from_u32_consensus(sighash_type).split_anyonecanpay_flag();
+        let (sighash, anyone_can_pay) =
+            SigHashType::from_u32_consensus(sighash_type).split_anyonecanpay_flag();
 
         // Special-case sighash_single bug because this is easy enough.
         if sighash == SigHashType::Single && input_index >= self.output.len() {
-            writer.write_all(&[1, 0, 0, 0, 0, 0, 0, 0,
-                               0, 0, 0, 0, 0, 0, 0, 0,
-                               0, 0, 0, 0, 0, 0, 0, 0,
-                               0, 0, 0, 0, 0, 0, 0, 0])?;
+            writer.write_all(&[
+                1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0,
+            ])?;
             return Ok(());
         }
 
@@ -488,7 +436,13 @@ impl Transaction {
             for (n, input) in self.input.iter().enumerate() {
                 tx.input.push(TxIn {
                     previous_output: input.previous_output,
-                    sequence: if n != input_index && (sighash == SigHashType::Single || sighash == SigHashType::None) { 0 } else { input.sequence },
+                    sequence: if n != input_index
+                        && (sighash == SigHashType::Single || sighash == SigHashType::None)
+                    {
+                        0
+                    } else {
+                        input.sequence
+                    },
                     witness: vec![],
                 });
             }
@@ -497,14 +451,22 @@ impl Transaction {
         tx.output = match sighash {
             SigHashType::All => self.output.clone(),
             SigHashType::Single => {
-                let output_iter = self.output.iter()
-                                      .take(input_index + 1)  // sign all outputs up to and including this one, but erase
-                                      .enumerate()            // all of them except for this one
-                                      .map(|(n, out)| if n == input_index { out.clone() } else { TxOut::default() });
+                let output_iter = self
+                    .output
+                    .iter()
+                    .take(input_index + 1) // sign all outputs up to and including this one, but erase
+                    .enumerate() // all of them except for this one
+                    .map(|(n, out)| {
+                        if n == input_index {
+                            out.clone()
+                        } else {
+                            TxOut::default()
+                        }
+                    });
                 output_iter.collect()
             }
             SigHashType::None => vec![],
-            _ => unreachable!()
+            _ => unreachable!(),
         };
         // hash the result
         tx.consensus_encode(&mut writer)?;
@@ -530,7 +492,7 @@ impl Transaction {
         &self,
         input_index: usize,
         script_pubkey: &Script,
-        sighash_u32: u32
+        sighash_u32: u32,
     ) -> SigHash {
         let mut engine = SigHash::engine();
         self.encode_signing_data_to(&mut engine, input_index, script_pubkey, sighash_u32)
@@ -558,7 +520,7 @@ impl Transaction {
         let mut input_weight = 0;
         let mut inputs_with_witnesses = 0;
         for input in &self.input {
-            input_weight += scale_factor*(32 + 4 + 4); // outpoint (32+4) + nSequence
+            input_weight += scale_factor * (32 + 4 + 4); // outpoint (32+4) + nSequence
             if !input.witness.is_empty() {
                 inputs_with_witnesses += 1;
                 input_weight += VarInt(input.witness.len() as u64).len();
@@ -567,7 +529,7 @@ impl Transaction {
                 }
             }
         }
-        
+
         let mut output_size = 0;
         for output in &self.output {
             output_size += 8 + // value
@@ -585,7 +547,8 @@ impl Transaction {
         if inputs_with_witnesses == 0 {
             non_input_size * scale_factor + input_weight
         } else {
-            non_input_size * scale_factor + input_weight + self.input.len() - inputs_with_witnesses + 2
+            non_input_size * scale_factor + input_weight + self.input.len() - inputs_with_witnesses
+                + 2
         }
     }
 
@@ -598,7 +561,9 @@ impl Transaction {
     /// **does not** cover the case where a transaction becomes replaceable due to ancestors being
     /// RBF.
     pub fn is_explicitly_rbf(&self) -> bool {
-        self.input.iter().any(|input| input.sequence < (0xffffffff - 1))
+        self.input
+            .iter()
+            .any(|input| input.sequence < (0xffffffff - 1))
     }
 }
 
@@ -621,10 +586,7 @@ fn size_var_int(n: usize) -> usize {
 impl_consensus_encoding!(TxOut, value, address, covenant);
 
 impl Encodable for OutPoint {
-    fn consensus_encode<S: io::Write>(
-        &self,
-        mut s: S,
-    ) -> Result<usize, io::Error> {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
         let len = self.txid.consensus_encode(&mut s)?;
         Ok(len + self.vout.consensus_encode(s)?)
     }
@@ -639,10 +601,7 @@ impl Decodable for OutPoint {
 }
 
 impl Encodable for TxIn {
-    fn consensus_encode<S: io::Write>(
-        &self,
-        mut s: S,
-    ) -> Result<usize, io::Error> {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
         let mut len = 0;
         len += self.previous_output.consensus_encode(&mut s)?;
         len += self.sequence.consensus_encode(s)?;
@@ -660,12 +619,9 @@ impl Decodable for TxIn {
 }
 
 impl Encodable for Transaction {
-    fn consensus_encode<S: io::Write>(
-        &self,
-        mut s: S,
-    ) -> Result<usize, io::Error> {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
         let mut len = 0;
-        len += self.version.consensus_encode(&mut s)?;        
+        len += self.version.consensus_encode(&mut s)?;
         len += self.input.consensus_encode(&mut s)?;
         len += self.output.consensus_encode(&mut s)?;
         len += self.lock_time.consensus_encode(&mut s)?;
@@ -693,7 +649,7 @@ impl Decodable for Transaction {
             input,
             output,
             lock_time,
-        })
+        });
     }
 }
 
@@ -715,20 +671,20 @@ impl error::Error for NonStandardSigHashType {}
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum SigHashType {
     /// 0x1: Sign all outputs
-    All		= 0x01,
+    All = 0x01,
     /// 0x2: Sign no outputs --- anyone can choose the destination
-    None	= 0x02,
+    None = 0x02,
     /// 0x3: Sign the output whose index matches this input's index. If none exists,
     /// sign the hash `0000000000000000000000000000000000000000000000000000000000000001`.
     /// (This rule is probably an unintentional C++ism, but it's consensus so we have
     /// to follow it.)
-    Single	= 0x03,
+    Single = 0x03,
     /// 0x81: Sign all outputs but only this input
-    AllPlusAnyoneCanPay		= 0x81,
+    AllPlusAnyoneCanPay = 0x81,
     /// 0x82: Sign no outputs and only this input
-    NonePlusAnyoneCanPay	= 0x82,
+    NonePlusAnyoneCanPay = 0x82,
     /// 0x83: Sign one output and only this input (see `Single` for what "one output" means)
-    SinglePlusAnyoneCanPay	= 0x83
+    SinglePlusAnyoneCanPay = 0x83,
 }
 serde_string_impl!(SigHashType, "a SigHashType data");
 
@@ -757,71 +713,76 @@ impl str::FromStr for SigHashType {
             "SIGHASH_ALL|SIGHASH_ANYONECANPAY" => Ok(SigHashType::AllPlusAnyoneCanPay),
             "SIGHASH_NONE|SIGHASH_ANYONECANPAY" => Ok(SigHashType::NonePlusAnyoneCanPay),
             "SIGHASH_SINGLE|SIGHASH_ANYONECANPAY" => Ok(SigHashType::SinglePlusAnyoneCanPay),
-            _ => Err("can't recognize SIGHASH string".to_string())
+            _ => Err("can't recognize SIGHASH string".to_string()),
         }
     }
 }
 
 impl SigHashType {
-     /// Break the sighash flag into the "real" sighash flag and the ANYONECANPAY boolean
-     pub(crate) fn split_anyonecanpay_flag(self) -> (SigHashType, bool) {
-         match self {
-             SigHashType::All		=> (SigHashType::All, false),
-             SigHashType::None		=> (SigHashType::None, false),
-             SigHashType::Single	=> (SigHashType::Single, false),
-             SigHashType::AllPlusAnyoneCanPay		=> (SigHashType::All, true),
-             SigHashType::NonePlusAnyoneCanPay		=> (SigHashType::None, true),
-             SigHashType::SinglePlusAnyoneCanPay	=> (SigHashType::Single, true)
-         }
-     }
+    /// Break the sighash flag into the "real" sighash flag and the ANYONECANPAY boolean
+    pub(crate) fn split_anyonecanpay_flag(self) -> (SigHashType, bool) {
+        match self {
+            SigHashType::All => (SigHashType::All, false),
+            SigHashType::None => (SigHashType::None, false),
+            SigHashType::Single => (SigHashType::Single, false),
+            SigHashType::AllPlusAnyoneCanPay => (SigHashType::All, true),
+            SigHashType::NonePlusAnyoneCanPay => (SigHashType::None, true),
+            SigHashType::SinglePlusAnyoneCanPay => (SigHashType::Single, true),
+        }
+    }
 
-     /// Reads a 4-byte uint32 as a sighash type.
-     #[deprecated(since="0.26.1", note="please use `from_u32_consensus` or `from_u32_standard` instead")]
-     pub fn from_u32(n: u32) -> SigHashType {
-         Self::from_u32_consensus(n)
-     }
+    /// Reads a 4-byte uint32 as a sighash type.
+    #[deprecated(
+        since = "0.26.1",
+        note = "please use `from_u32_consensus` or `from_u32_standard` instead"
+    )]
+    pub fn from_u32(n: u32) -> SigHashType {
+        Self::from_u32_consensus(n)
+    }
 
-     /// Reads a 4-byte uint32 as a sighash type.
-     ///
-     /// **Note**: this replicates consensus behaviour, for current standardness rules correctness
-     /// you probably want [Self::from_u32_standard].
-     pub fn from_u32_consensus(n: u32) -> SigHashType {
-         // In Bitcoin Core, the SignatureHash function will mask the (int32) value with
-         // 0x1f to (apparently) deactivate ACP when checking for SINGLE and NONE bits.
-         // We however want to be matching also against on ACP-masked ALL, SINGLE, and NONE.
-         // So here we re-activate ACP.
-         let mask = 0x1f | 0x80;
-         match n & mask {
-             // "real" sighashes
-             0x01 => SigHashType::All,
-             0x02 => SigHashType::None,
-             0x03 => SigHashType::Single,
-             0x81 => SigHashType::AllPlusAnyoneCanPay,
-             0x82 => SigHashType::NonePlusAnyoneCanPay,
-             0x83 => SigHashType::SinglePlusAnyoneCanPay,
-             // catchalls
-             x if x & 0x80 == 0x80 => SigHashType::AllPlusAnyoneCanPay,
-             _ => SigHashType::All
-         }
-     }
+    /// Reads a 4-byte uint32 as a sighash type.
+    ///
+    /// **Note**: this replicates consensus behaviour, for current standardness rules correctness
+    /// you probably want [Self::from_u32_standard].
+    pub fn from_u32_consensus(n: u32) -> SigHashType {
+        // In Bitcoin Core, the SignatureHash function will mask the (int32) value with
+        // 0x1f to (apparently) deactivate ACP when checking for SINGLE and NONE bits.
+        // We however want to be matching also against on ACP-masked ALL, SINGLE, and NONE.
+        // So here we re-activate ACP.
+        let mask = 0x1f | 0x80;
+        match n & mask {
+            // "real" sighashes
+            0x01 => SigHashType::All,
+            0x02 => SigHashType::None,
+            0x03 => SigHashType::Single,
+            0x81 => SigHashType::AllPlusAnyoneCanPay,
+            0x82 => SigHashType::NonePlusAnyoneCanPay,
+            0x83 => SigHashType::SinglePlusAnyoneCanPay,
+            // catchalls
+            x if x & 0x80 == 0x80 => SigHashType::AllPlusAnyoneCanPay,
+            _ => SigHashType::All,
+        }
+    }
 
-     /// Read a 4-byte uint32 as a standard sighash type, returning an error if the type
-     /// is non standard.
-     pub fn from_u32_standard(n: u32) -> Result<SigHashType, NonStandardSigHashType> {
-         match n {
-             // Standard sighashes, see https://github.com/bitcoin/bitcoin/blob/b805dbb0b9c90dadef0424e5b3bf86ac308e103e/src/script/interpreter.cpp#L189-L198
-             0x01 => Ok(SigHashType::All),
-             0x02 => Ok(SigHashType::None),
-             0x03 => Ok(SigHashType::Single),
-             0x81 => Ok(SigHashType::AllPlusAnyoneCanPay),
-             0x82 => Ok(SigHashType::NonePlusAnyoneCanPay),
-             0x83 => Ok(SigHashType::SinglePlusAnyoneCanPay),
-             _ => Err(NonStandardSigHashType)
-         }
-     }
+    /// Read a 4-byte uint32 as a standard sighash type, returning an error if the type
+    /// is non standard.
+    pub fn from_u32_standard(n: u32) -> Result<SigHashType, NonStandardSigHashType> {
+        match n {
+            // Standard sighashes, see https://github.com/bitcoin/bitcoin/blob/b805dbb0b9c90dadef0424e5b3bf86ac308e103e/src/script/interpreter.cpp#L189-L198
+            0x01 => Ok(SigHashType::All),
+            0x02 => Ok(SigHashType::None),
+            0x03 => Ok(SigHashType::Single),
+            0x81 => Ok(SigHashType::AllPlusAnyoneCanPay),
+            0x82 => Ok(SigHashType::NonePlusAnyoneCanPay),
+            0x83 => Ok(SigHashType::SinglePlusAnyoneCanPay),
+            _ => Err(NonStandardSigHashType),
+        }
+    }
 
-     /// Converts to a u32
-     pub fn as_u32(self) -> u32 { self as u32 }
+    /// Converts to a u32
+    pub fn as_u32(self) -> u32 {
+        self as u32
+    }
 }
 
 impl From<SigHashType> for u32 {
@@ -832,10 +793,12 @@ impl From<SigHashType> for u32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{OutPoint, ParseOutPointError, Transaction, TxIn, NonStandardSigHashType};
+    use crate::blockdata::covenant::CovenantType;
 
-    use core::str::FromStr;
+    use super::{NonStandardSigHashType, OutPoint, ParseOutPointError, Transaction, TxIn};
+
     use consensus::encode::deserialize;
+    use core::str::FromStr;
 
     use hashes::hex::FromHex;
 
@@ -844,35 +807,84 @@ mod tests {
 
     #[test]
     fn test_outpoint() {
-        assert_eq!(OutPoint::from_str("i don't care"),
-                   Err(ParseOutPointError::Format));
-        assert_eq!(OutPoint::from_str("5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:1:1"),
-                   Err(ParseOutPointError::Format));
-        assert_eq!(OutPoint::from_str("5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:"),
-                   Err(ParseOutPointError::Format));
-        assert_eq!(OutPoint::from_str("5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:11111111111"),
-                   Err(ParseOutPointError::TooLong));
-        assert_eq!(OutPoint::from_str("5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:01"),
-                   Err(ParseOutPointError::VoutNotCanonical));
-        assert_eq!(OutPoint::from_str("5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:+42"),
-                   Err(ParseOutPointError::VoutNotCanonical));
-        assert_eq!(OutPoint::from_str("i don't care:1"),
-                   Err(ParseOutPointError::Txid(Txid::from_hex("i don't care").unwrap_err())));
-        assert_eq!(OutPoint::from_str("5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c945X:1"),
-                   Err(ParseOutPointError::Txid(Txid::from_hex("5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c945X").unwrap_err())));
-        assert_eq!(OutPoint::from_str("5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:lol"),
-                   Err(ParseOutPointError::Vout(u32::from_str("lol").unwrap_err())));
+        assert_eq!(
+            OutPoint::from_str("i don't care"),
+            Err(ParseOutPointError::Format)
+        );
+        assert_eq!(
+            OutPoint::from_str(
+                "5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:1:1"
+            ),
+            Err(ParseOutPointError::Format)
+        );
+        assert_eq!(
+            OutPoint::from_str("5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:"),
+            Err(ParseOutPointError::Format)
+        );
+        assert_eq!(
+            OutPoint::from_str(
+                "5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:11111111111"
+            ),
+            Err(ParseOutPointError::TooLong)
+        );
+        assert_eq!(
+            OutPoint::from_str(
+                "5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:01"
+            ),
+            Err(ParseOutPointError::VoutNotCanonical)
+        );
+        assert_eq!(
+            OutPoint::from_str(
+                "5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:+42"
+            ),
+            Err(ParseOutPointError::VoutNotCanonical)
+        );
+        assert_eq!(
+            OutPoint::from_str("i don't care:1"),
+            Err(ParseOutPointError::Txid(
+                Txid::from_hex("i don't care").unwrap_err()
+            ))
+        );
+        assert_eq!(
+            OutPoint::from_str(
+                "5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c945X:1"
+            ),
+            Err(ParseOutPointError::Txid(
+                Txid::from_hex("5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c945X")
+                    .unwrap_err()
+            ))
+        );
+        assert_eq!(
+            OutPoint::from_str(
+                "5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:lol"
+            ),
+            Err(ParseOutPointError::Vout(u32::from_str("lol").unwrap_err()))
+        );
 
-        assert_eq!(OutPoint::from_str("5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:42"),
-                   Ok(OutPoint{
-                       txid: Txid::from_hex("5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456").unwrap(),
-                       vout: 42,
-                   }));
-        assert_eq!(OutPoint::from_str("5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:0"),
-                   Ok(OutPoint{
-                       txid: Txid::from_hex("5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456").unwrap(),
-                       vout: 0,
-                   }));
+        assert_eq!(
+            OutPoint::from_str(
+                "5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:42"
+            ),
+            Ok(OutPoint {
+                txid: Txid::from_hex(
+                    "5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456"
+                )
+                .unwrap(),
+                vout: 42,
+            })
+        );
+        assert_eq!(
+            OutPoint::from_str(
+                "5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456:0"
+            ),
+            Ok(OutPoint {
+                txid: Txid::from_hex(
+                    "5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456"
+                )
+                .unwrap(),
+                vout: 0,
+            })
+        );
     }
 
     // #[test]
@@ -891,15 +903,51 @@ mod tests {
     }
 
     #[test]
-    fn test_is_coinbase () {
-        use network::constants::Network;
+    fn test_is_coinbase() {
         use blockdata::constants;
+        use network::constants::Network;
 
         let genesis = constants::genesis_block(Network::Mainnet);
-        assert! (genesis.txdata[0].is_coin_base());
+        assert!(genesis.txdata[0].is_coin_base());
         let tx_bytes = Vec::from_hex("00000000025ca2d52c92df1a8ddc5d84d635d4aa1e0874ad5e65a3047b64ea0cb7b614125000000000ffffffff44ffdf14e1c8bb77085910473213623dbfbb18562768993b7a86fa1ed3bdae7c01000000ffffffff0240420f00000000000014755bf96f2528248e99cded686b363a7f87db24580502201b918b30b5bd20c2dd7ab997e1c7bd24a885171c05e36350e0dbf063d91a4e8d047a1e0000346037ab070000000014c4f60ccb49e54d3c9da93883a2a67a7965e2de9b0000000000000241ed495dc64c4a71a0ba93d48e5ab899cf92b74e267b0d2447efa4bbbba3b3d3fa2d54754a91032cbd62e019a7992d2dc4d121a67ee05b99a29e8866fdc635d55601210364532e53f57edc342612a00c7d85c3181ab4baedf14da62bc02a426184d0d6fb02416b156cb895400b9306bdc63cd24f163d49b52576c2c76a6b3e4de8a8e0ddd2b81d286634b5dc4aac18cb04777118fc9fcd796b3535e9d918c90734461e3d3a6b012103d5c9043309ed2a9797ace401cd303021760f4eb16afb4a8edf8037ccb6854324").unwrap();
         let tx: Transaction = deserialize(&tx_bytes).unwrap();
         assert!(!tx.is_coin_base());
+    }
+
+    #[test]
+    fn test_parse_bid_tx() {
+        let tx_hex = "0000000001114e4941ae49258401c50f550f056cd651c55b5ad565aa21f631a6951361a72533000000ffffffff0200e1f50500000000001438cddf428feb39a2b82ce37d707d7703807d7167030420d23bc69b71103fec25dc0ca6917a868288efb36b572f787a43a4d87b0a7da50404852201000a73746f726d737461636b20379c9f03b0b750093745abb418b05c09d8975357950e1b05ae6725aa23bb2b931e2f675f000000000014e54e9b67ae179d9f5310c7c6359e9c873cc31a6200000000000002419243e14c6542a0d04b2aaf53d06e45505c8f1680dd7970c6fa3a9e23ae99e97f7304a5d28f01055c472b1c36cdc3c85145d71948836a04ab1ef123a30ac6c1ab0121025c2ad4529da5169c8bce21e171574e6df222f81edf7fa4ceb5128ac9ebc750b0";
+        let tx_bytes = Vec::from_hex(tx_hex).unwrap();
+        let tx: Transaction = deserialize(&tx_bytes).unwrap();
+
+        assert!(!tx.is_coin_base());
+        assert_eq!(tx.input.len(), 1);
+        assert_eq!(tx.output.len(), 2);
+
+        assert_eq!(tx.output[0].covenant.covenant_type, CovenantType::Bid);
+        assert_eq!(tx.output[0].covenant.items.len(), 4);
+        assert_eq!(tx.output[0].value, 100000000);
+        let mut addr = tx.output[0].address.clone();
+        addr.network = crate::network::constants::Network::Mainnet;
+        assert_eq!(
+            addr.to_string(),
+            "hs1q8rxa7s50avu69wpvud7hqlthqwq86ut8gln4k5"
+        );
+
+        let bid = tx.output[0].covenant.as_bid().unwrap();
+        assert_eq!(
+            bid.name_hash.to_string(),
+            "d23bc69b71103fec25dc0ca6917a868288efb36b572f787a43a4d87b0a7da504"
+        );
+        assert_eq!(bid.height, 74373);
+        assert_eq!(bid.name, "stormstack");
+        assert_eq!(
+            bid.blind_hash.to_string(),
+            "379c9f03b0b750093745abb418b05c09d8975357950e1b05ae6725aa23bb2b93"
+        );
+
+        assert_eq!(tx.output[1].covenant.covenant_type, CovenantType::None);
+        tx.output[1].covenant.as_none().unwrap();
     }
 
     #[test]
@@ -913,8 +961,9 @@ mod tests {
             7f6ea32d5226633d1e6a001400000000000002412f0e58a7f3a0310cfb016253478a9fa\
             8ab3bbbfff179fd72441f547942ffaad62217309d38ebb7fea5f04beff89e935a7d53a8\
             b1d84c08d6ceb1f67960e6695f0121023c6b2d479f020528b857082a547725f8e69debb\
-            440beed8b183cff8475b14b14"
-        ).unwrap();
+            440beed8b183cff8475b14b14",
+        )
+        .unwrap();
         let tx: Result<Transaction, _> = deserialize(&tx_bytes);
         assert!(tx.is_ok());
         let realtx = tx.unwrap();
@@ -925,16 +974,22 @@ mod tests {
         // In particular this one is easy to get backward -- in bitcoin hashes are encoded
         // as little-endian 256-bit numbers rather than as data strings.
         let _expected_prev_output_txid = format!("{:x}", realtx.input[0].previous_output.txid);
-        assert_eq!(format!("{:x}", realtx.input[0].previous_output.txid),
-                   "a6ec4245ef8c42d0602d1ec76961988719b8e72d97b7d073e2c4a8917da2c659".to_string());
+        assert_eq!(
+            format!("{:x}", realtx.input[0].previous_output.txid),
+            "a6ec4245ef8c42d0602d1ec76961988719b8e72d97b7d073e2c4a8917da2c659".to_string()
+        );
         assert_eq!(realtx.input[0].previous_output.vout, 3);
         assert_eq!(realtx.output.len(), 2);
         assert_eq!(realtx.lock_time, 0);
 
-        assert_eq!(format!("{:x}", realtx.txid()),
-                   "4cddf15bef61400728ba15356418200c6247f53ad173d06c4fd928023083f84b".to_string());
-        assert_eq!(format!("{:x}", realtx.wtxid()),
-                   "a50125d022b455e6d8f7a2ae49c7088897c9de4b4ee6e41a4036d15af158c78f".to_string());
+        assert_eq!(
+            format!("{:x}", realtx.txid()),
+            "4cddf15bef61400728ba15356418200c6247f53ad173d06c4fd928023083f84b".to_string()
+        );
+        assert_eq!(
+            format!("{:x}", realtx.wtxid()),
+            "a50125d022b455e6d8f7a2ae49c7088897c9de4b4ee6e41a4036d15af158c78f".to_string()
+        );
         assert_eq!(realtx.get_weight(), 535);
         // assert_eq!(realtx.get_size(), tx_bytes.len());
     }
@@ -958,45 +1013,49 @@ mod tests {
             34614a11d9f02700640b3a55cde31c428047a241c7e2247ce52aab0119cf7d0148072dc9000000000014d\
             59f37ad0af29fce7f6ea32d5226633d1e6a001400000000000002412f0e58a7f3a0310cfb016253478a9f\
             a8ab3bbbfff179fd72441f547942ffaad62217309d38ebb7fea5f04beff89e935a7d53a8b1d84c08d6ceb\
-            1f67960e6695f0121023c6b2d479f020528b857082a547725f8e69debb440beed8b183cff8475b14b14"
-        ).unwrap();
+            1f67960e6695f0121023c6b2d479f020528b857082a547725f8e69debb440beed8b183cff8475b14b14",
+        )
+        .unwrap();
         let tx: Transaction = deserialize(&tx_bytes).unwrap();
 
-        assert_eq!(format!("{:x}", tx.txid()), "4cddf15bef61400728ba15356418200c6247f53ad173d06c4fd928023083f84b");
-        assert_eq!(format!("{:x}", tx.wtxid()), "a50125d022b455e6d8f7a2ae49c7088897c9de4b4ee6e41a4036d15af158c78f");
+        assert_eq!(
+            format!("{:x}", tx.txid()),
+            "4cddf15bef61400728ba15356418200c6247f53ad173d06c4fd928023083f84b"
+        );
+        assert_eq!(
+            format!("{:x}", tx.wtxid()),
+            "a50125d022b455e6d8f7a2ae49c7088897c9de4b4ee6e41a4036d15af158c78f"
+        );
         assert_eq!(tx.get_weight(), 535);
     }
 
     #[test]
     #[cfg(feature = "serde")]
     fn test_txn_encode_decode() {
-        let tx_bytes = Vec::from_hex("0100000001a15d57094aa7a21a28cb20b59aab8fc7d1149a3bdbcddba9c622e4f5f6a99ece010000006c493046022100f93bb0e7d8db7bd46e40132d1f8242026e045f03a0efe71bbb8e3f475e970d790221009337cd7f1f929f00cc6ff01f03729b069a7c21b59b1736ddfee5db5946c5da8c0121033b9b137ee87d5a812d6f506efdd37f0affa7ffc310711c06c7f3e097c9447c52ffffffff0100e1f505000000001976a9140389035a9225b3839e2bbf32d826a1e222031fd888ac00000000").unwrap();
+        let tx_bytes = Vec::from_hex("0000000001114e4941ae49258401c50f550f056cd651c55b5ad565aa21f631a6951361a72533000000ffffffff0200e1f50500000000001438cddf428feb39a2b82ce37d707d7703807d7167030420d23bc69b71103fec25dc0ca6917a868288efb36b572f787a43a4d87b0a7da50404852201000a73746f726d737461636b20379c9f03b0b750093745abb418b05c09d8975357950e1b05ae6725aa23bb2b931e2f675f000000000014e54e9b67ae179d9f5310c7c6359e9c873cc31a6200000000000002419243e14c6542a0d04b2aaf53d06e45505c8f1680dd7970c6fa3a9e23ae99e97f7304a5d28f01055c472b1c36cdc3c85145d71948836a04ab1ef123a30ac6c1ab0121025c2ad4529da5169c8bce21e171574e6df222f81edf7fa4ceb5128ac9ebc750b0").unwrap();
         let tx: Transaction = deserialize(&tx_bytes).unwrap();
         serde_round_trip!(tx);
-    }
-
-    // Test decoding transaction `4be105f158ea44aec57bf12c5817d073a712ab131df6f37786872cfc70734188`
-    // from testnet, which is the first BIP144-encoded transaction I encountered.
-    #[test]
-    #[cfg(feature = "serde")]
-    fn test_segwit_tx_decode() {
-        let tx_bytes = Vec::from_hex("010000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff3603da1b0e00045503bd5704c7dd8a0d0ced13bb5785010800000000000a636b706f6f6c122f4e696e6a61506f6f6c2f5345475749542fffffffff02b4e5a212000000001976a914876fbb82ec05caa6af7a3b5e5a983aae6c6cc6d688ac0000000000000000266a24aa21a9edf91c46b49eb8a29089980f02ee6b57e7d63d33b18b4fddac2bcd7db2a39837040120000000000000000000000000000000000000000000000000000000000000000000000000").unwrap();
-        let tx: Transaction = deserialize(&tx_bytes).unwrap();
-        assert_eq!(tx.get_weight(), 780);
-        serde_round_trip!(tx);
-
-        let consensus_encoded = serialize(&tx);
-        assert_eq!(consensus_encoded, tx_bytes);
     }
 
     #[test]
     fn test_sighashtype_fromstr_display() {
-        let sighashtypes = vec![("SIGHASH_ALL", SigHashType::All),
+        let sighashtypes = vec![
+            ("SIGHASH_ALL", SigHashType::All),
             ("SIGHASH_NONE", SigHashType::None),
             ("SIGHASH_SINGLE", SigHashType::Single),
-            ("SIGHASH_ALL|SIGHASH_ANYONECANPAY", SigHashType::AllPlusAnyoneCanPay),
-            ("SIGHASH_NONE|SIGHASH_ANYONECANPAY", SigHashType::NonePlusAnyoneCanPay),
-            ("SIGHASH_SINGLE|SIGHASH_ANYONECANPAY", SigHashType::SinglePlusAnyoneCanPay)];
+            (
+                "SIGHASH_ALL|SIGHASH_ANYONECANPAY",
+                SigHashType::AllPlusAnyoneCanPay,
+            ),
+            (
+                "SIGHASH_NONE|SIGHASH_ANYONECANPAY",
+                SigHashType::NonePlusAnyoneCanPay,
+            ),
+            (
+                "SIGHASH_SINGLE|SIGHASH_ANYONECANPAY",
+                SigHashType::SinglePlusAnyoneCanPay,
+            ),
+        ];
         for (s, sht) in sighashtypes {
             assert_eq!(sht.to_string(), s);
             assert_eq!(SigHashType::from_str(s).unwrap(), sht);
@@ -1014,7 +1073,10 @@ mod tests {
             "SigHash_NONE",
         ];
         for s in sht_mistakes {
-            assert_eq!(SigHashType::from_str(s).unwrap_err(), "can't recognize SIGHASH string");
+            assert_eq!(
+                SigHashType::from_str(s).unwrap_err(),
+                "can't recognize SIGHASH string"
+            );
         }
     }
 
@@ -1023,10 +1085,19 @@ mod tests {
     fn test_sighashtype_standard() {
         let nonstandard_hashtype = 0x04;
         // This type is not well defined, by consensus it becomes ALL
-        assert_eq!(SigHashType::from_u32(nonstandard_hashtype), SigHashType::All);
-        assert_eq!(SigHashType::from_u32_consensus(nonstandard_hashtype), SigHashType::All);
+        assert_eq!(
+            SigHashType::from_u32(nonstandard_hashtype),
+            SigHashType::All
+        );
+        assert_eq!(
+            SigHashType::from_u32_consensus(nonstandard_hashtype),
+            SigHashType::All
+        );
         // But it's policy-invalid to use it!
-        assert_eq!(SigHashType::from_u32_standard(nonstandard_hashtype), Err(NonStandardSigHashType));
+        assert_eq!(
+            SigHashType::from_u32_standard(nonstandard_hashtype),
+            Err(NonStandardSigHashType)
+        );
     }
 
     // TODO - test for handshake
@@ -1089,10 +1160,10 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod benches {
     use super::Transaction;
-    use EmptyWrite;
     use consensus::{deserialize, Encodable};
     use hashes::hex::FromHex;
     use test::{black_box, Bencher};
+    use EmptyWrite;
 
     const SOME_TX: &'static str = "0100000001a15d57094aa7a21a28cb20b59aab8fc7d1149a3bdbcddba9c622e4f5f6a99ece010000006c493046022100f93bb0e7d8db7bd46e40132d1f8242026e045f03a0efe71bbb8e3f475e970d790221009337cd7f1f929f00cc6ff01f03729b069a7c21b59b1736ddfee5db5946c5da8c0121033b9b137ee87d5a812d6f506efdd37f0affa7ffc310711c06c7f3e097c9447c52ffffffff0100e1f505000000001976a9140389035a9225b3839e2bbf32d826a1e222031fd888ac00000000";
 

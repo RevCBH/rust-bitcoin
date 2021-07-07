@@ -12,7 +12,7 @@ readme = "README.md"
 
 
 [features]
-default = [ "secp-recovery", "base64" ]
+default = [ "secp-recovery", "base64", "use-serde" ]
 base64 = [ "base64-compat" ]
 fuzztarget = []
 unstable = []
@@ -25,6 +25,7 @@ secp-recovery = ["secp256k1/recovery"]
 bech32 = "0.8.0"
 bitcoin_hashes = { path = "../bitcoin_hashes" }
 blake2 = "0.9.1"
+sha3 = "0.9.1"
 secp256k1 = "0.20.2"
 num = "0.4.0"
 num-derive = "0.3.3"

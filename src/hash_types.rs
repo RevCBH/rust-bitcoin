@@ -16,43 +16,127 @@
 //! to avoid mixing data of the same hash format (like SHA256d) but of different meaning
 //! (transaction id, block hash etc).
 
-use hashes::{Hash, sha256, /*sha256d,*/ hash160, blake2b};
+use hashes::{blake2b, hash160, sha256, Hash};
 
 macro_rules! impl_hashencode {
     ($hashtype:ident) => {
         impl $crate::consensus::Encodable for $hashtype {
-            fn consensus_encode<S: $crate::io::Write>(&self, s: S) -> Result<usize, $crate::io::Error> {
+            fn consensus_encode<S: $crate::io::Write>(
+                &self,
+                s: S,
+            ) -> Result<usize, $crate::io::Error> {
                 self.0.consensus_encode(s)
             }
         }
 
         impl $crate::consensus::Decodable for $hashtype {
-            fn consensus_decode<D: $crate::io::Read>(d: D) -> Result<Self, $crate::consensus::encode::Error> {
+            fn consensus_decode<D: $crate::io::Read>(
+                d: D,
+            ) -> Result<Self, $crate::consensus::encode::Error> {
                 use $crate::hashes::Hash;
-                Ok(Self::from_inner(<<$hashtype as $crate::hashes::Hash>::Inner>::consensus_decode(d)?))
+                Ok(Self::from_inner(
+                    <<$hashtype as $crate::hashes::Hash>::Inner>::consensus_decode(d)?,
+                ))
             }
         }
-    }
+    };
 }
 
-hash_newtype!(Txid, blake2b::Hash, 32, doc="A handshake transaction hash/transaction ID.");
-hash_newtype!(Wtxid, blake2b::Hash, 32, doc="A handshake witness transaction ID.");
-hash_newtype!(BlockHash, blake2b::Hash, 32, doc="A bitcoin block hash.");
-hash_newtype!(SigHash, blake2b::Hash, 32, doc="Hash of the transaction according to the signature algorithm");
+hash_newtype!(
+    Txid,
+    blake2b::Hash,
+    32,
+    doc = "A handshake transaction hash/transaction ID."
+);
+hash_newtype!(
+    Wtxid,
+    blake2b::Hash,
+    32,
+    doc = "A handshake witness transaction ID."
+);
+hash_newtype!(
+    BlockHash,
+    blake2b::Hash,
+    32,
+    doc = "A handshake block hash."
+);
+hash_newtype!(
+    SigHash,
+    blake2b::Hash,
+    32,
+    doc = "Hash of the transaction according to the signature algorithm"
+);
 
-hash_newtype!(PubkeyHash, hash160::Hash, 20, doc="A hash of a public key.");
-hash_newtype!(ScriptHash, hash160::Hash, 20, doc="A hash of Bitcoin Script bytecode.");
-hash_newtype!(WPubkeyHash, hash160::Hash, 20, doc="SegWit version of a public key hash.");
-hash_newtype!(WScriptHash, sha256::Hash, 32, doc="SegWit version of a Bitcoin Script bytecode hash.");
+hash_newtype!(
+    PubkeyHash,
+    hash160::Hash,
+    20,
+    doc = "A hash of a public key."
+);
+hash_newtype!(
+    ScriptHash,
+    hash160::Hash,
+    20,
+    doc = "A hash of Bitcoin Script bytecode."
+);
+hash_newtype!(
+    WPubkeyHash,
+    hash160::Hash,
+    20,
+    doc = "SegWit version of a public key hash."
+);
+hash_newtype!(
+    WScriptHash,
+    sha256::Hash,
+    32,
+    doc = "SegWit version of a Bitcoin Script bytecode hash."
+);
 
-hash_newtype!(TxMerkleNode, blake2b::Hash, 32, doc="A hash of the Merkle tree branch or root for transactions");
-hash_newtype!(NameTreeMerkleNode, blake2b::Hash, 32, doc="A hash of the Merkle tree branch or root for name state");
-hash_newtype!(WitnessMerkleNode, blake2b::Hash, 32, doc="A hash corresponding to the Merkle tree root for witness data");
-hash_newtype!(XpubIdentifier, hash160::Hash, 20, doc="XpubIdentifier as defined in BIP-32.");
+hash_newtype!(
+    TxMerkleNode,
+    blake2b::Hash,
+    32,
+    doc = "A hash of the Merkle tree branch or root for transactions"
+);
+hash_newtype!(
+    NameTreeMerkleNode,
+    blake2b::Hash,
+    32,
+    doc = "A hash of the Merkle tree branch or root for name state"
+);
+hash_newtype!(
+    WitnessMerkleNode,
+    blake2b::Hash,
+    32,
+    doc = "A hash corresponding to the Merkle tree root for witness data"
+);
+hash_newtype!(
+    XpubIdentifier,
+    hash160::Hash,
+    20,
+    doc = "XpubIdentifier as defined in BIP-32."
+);
 
-hash_newtype!(FilterHash, blake2b::Hash, 32, doc="Filter hash, as defined in BIP-157");
-hash_newtype!(FilterHeader, blake2b::Hash, 32, doc="Filter header, as defined in BIP-157");
+hash_newtype!(
+    FilterHash,
+    blake2b::Hash,
+    32,
+    doc = "Filter hash, as defined in BIP-157"
+);
+hash_newtype!(
+    FilterHeader,
+    blake2b::Hash,
+    32,
+    doc = "Filter header, as defined in BIP-157"
+);
 
+hash_newtype!(NameHash, blake2b::Hash, 32, doc = "A hash of a name");
+hash_newtype!(
+    BlindHash,
+    blake2b::Hash,
+    32,
+    doc = "A hash of a blind + nonce used in BIDs"
+);
 
 impl_hashencode!(Txid);
 impl_hashencode!(Wtxid);
@@ -63,3 +147,5 @@ impl_hashencode!(NameTreeMerkleNode);
 impl_hashencode!(WitnessMerkleNode);
 impl_hashencode!(FilterHash);
 impl_hashencode!(FilterHeader);
+impl_hashencode!(NameHash);
+impl_hashencode!(BlindHash);
