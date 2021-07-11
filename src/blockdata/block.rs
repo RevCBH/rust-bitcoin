@@ -35,7 +35,7 @@ use util::uint::Uint256;
 use util::Error::{BlockBadProofOfWork, BlockBadTarget};
 use VarInt;
 
-use super::hashes::{blake2b512, sha3};
+use super::hashes::{blake2b, sha3};
 
 struct BlockSubheader {
     // Subheader
@@ -129,7 +129,7 @@ impl BlockHeader {
     /// Return the block hash.
     pub fn block_hash(&self) -> BlockHash {
         let prehead = self.preheader_hash_bytes();
-        let left = blake2b512::digest(&prehead);
+        let left = blake2b::digest512(&prehead);
         let right = sha3::multi(vec![&prehead, &self.padding(8)]);
 
         let mut engine = BlockHash::engine();

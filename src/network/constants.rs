@@ -60,7 +60,7 @@ use consensus::encode::{self, Encodable, Decodable};
 /// 60002 - Support `mempool` message
 /// 60001 - Support `pong` message and nonce in `ping` message
 // TODO - correct this for handshake
-pub const PROTOCOL_VERSION: u32 = 70001;
+pub const PROTOCOL_VERSION: u32 = 3;
 
 user_enum! {
     /// The cryptocurrency to act on

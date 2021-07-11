@@ -41,8 +41,6 @@ pub struct VersionMessage {
     pub timestamp: i64,
     /// The network address of the peer receiving the message
     pub receiver: Address,
-    /// The network address of the peer sending the message
-    pub sender: Address,
     /// A random nonce used to detect loops in the network
     pub nonce: u64,
     /// A string describing the peer's software
@@ -61,7 +59,6 @@ impl VersionMessage {
         services: ServiceFlags,
         timestamp: i64,
         receiver: Address,
-        sender: Address,
         nonce: u64,
         user_agent: String,
         start_height: i32,
@@ -71,7 +68,6 @@ impl VersionMessage {
             services: services,
             timestamp: timestamp,
             receiver: receiver,
-            sender: sender,
             nonce: nonce,
             user_agent: user_agent,
             start_height: start_height,
@@ -81,7 +77,7 @@ impl VersionMessage {
 }
 
 impl_consensus_encoding!(VersionMessage, version, services, timestamp,
-                         receiver, sender, nonce,
+                         receiver, nonce,
                          user_agent, start_height, relay);
 
 /// message rejection reason as a code

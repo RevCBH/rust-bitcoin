@@ -28,15 +28,20 @@ use consensus::encode::{self, Decodable, Encodable, VarInt, ReadExt, WriteExt};
 /// A message which can be sent on the Bitcoin network
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Address {
+    /// Timestamp of the address
+    pub time: u64,
     /// Services provided by the peer whose address this is
     pub services: ServiceFlags,
     /// Network byte-order ipv6 address, or ipv4-mapped ipv6 address
     pub address: [u16; 8],
     /// Network port
-    pub port: u16
+    pub port: u16,
+    /// Key
+    pub key: [u8; 33]
 }
 
 const ONION : [u16; 3] = [0xFD87, 0xD87E, 0xEB43];
+const ZERO_KEY : [u8; 33] = [0; 33];
 
 impl Address {
     /// Create an address message for a socket
@@ -45,7 +50,10 @@ impl Address {
             SocketAddr::V4(addr) => (addr.ip().to_ipv6_mapped().segments(), addr.port()),
             SocketAddr::V6(addr) => (addr.ip().segments(), addr.port())
         };
-        Address { address: address, port: port, services: services }
+        Address {
+            // TODO - use timestamp
+            time: 0,
+            address: address, port: port, services: services, key: ZERO_KEY }
     }
 
     /// Extract socket address from an [Address] message.
@@ -79,9 +87,14 @@ impl Encodable for Address {
         &self,
         mut s: S,
     ) -> Result<usize, io::Error> {
-        let len = self.services.consensus_encode(&mut s)?
+        let len =
+            self.time.consensus_encode(& mut s)?
+            + self.services.consensus_encode(&mut s)?
+            + (0 as u8).consensus_encode(&mut s)?
             + addr_to_be(self.address).consensus_encode(&mut s)?
-            + self.port.to_be().consensus_encode(s)?;
+            + s.write(&[0; 20])?
+            + self.port.to_le().consensus_encode(&mut s)?
+            + self.key.consensus_encode(s)?;
         Ok(len)
     }
 }
@@ -89,10 +102,13 @@ impl Encodable for Address {
 impl Decodable for Address {
     #[inline]
     fn consensus_decode<D: io::Read>(mut d: D) -> Result<Self, encode::Error> {
+        // TODO - add buffer bytes
         Ok(Address {
+            time: Decodable::consensus_decode(&mut d)?,
             services: Decodable::consensus_decode(&mut d)?,
             address: addr_to_be(Decodable::consensus_decode(&mut d)?),
-            port: u16::from_be(Decodable::consensus_decode(d)?)
+            port: u16::from_le(Decodable::consensus_decode(& mut d)?),
+            key: Decodable::consensus_decode(d)?,
         })
     }
 }
@@ -293,6 +309,8 @@ impl ToSocketAddrs for AddrV2Message {
 #[cfg(test)]
 mod test {
     use core::str::FromStr;
+    use crate::network::address::ZERO_KEY;
+
     use super::{AddrV2Message, AddrV2, Address};
     use network::constants::ServiceFlags;
     use std::net::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr};
@@ -302,13 +320,20 @@ mod test {
 
     #[test]
     fn serialize_address_test() {
+        let mut expected: Vec<u8> = vec![0, 0, 0, 0, 0, 0, 0, 0, 1u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0xff, 0xff, 0x0a, 0, 0, 1];
+        expected.extend([0; 20]); // reserved
+        expected.extend([0x8d, 0x20]); //port
+        expected.extend(ZERO_KEY);
+
         assert_eq!(serialize(&Address {
+            time: 0,
             services: ServiceFlags::NETWORK,
             address: [0, 0, 0, 0, 0, 0xffff, 0x0a00, 0x0001],
-            port: 8333
+            port: 8333,
+            key: ZERO_KEY
         }),
-        vec![1u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-             0, 0, 0, 0xff, 0xff, 0x0a, 0, 0, 1, 0x20, 0x8d]);
+        expected);
     }
 
     #[test]
@@ -316,18 +341,22 @@ mod test {
         let mut flags = ServiceFlags::NETWORK;
         assert_eq!(
             format!("The address is: {:?}", Address {
+                time: 0,
                 services: flags.add(ServiceFlags::WITNESS),
                 address: [0, 0, 0, 0, 0, 0xffff, 0x0a00, 0x0001],
-                port: 8333
+                port: 8333,
+                key: ZERO_KEY
             }), 
             "The address is: Address {services: ServiceFlags(NETWORK|WITNESS), address: 10.0.0.1, port: 8333}"
         );
 
         assert_eq!(
             format!("The address is: {:?}", Address {
+                time: 0,
                 services: ServiceFlags::NETWORK_LIMITED,
                 address: [0xFD87, 0xD87E, 0xEB43, 0, 0, 0xffff, 0x0a00, 0x0001],
-                port: 8333
+                port: 8333,
+                key: ZERO_KEY
             }), 
             "The address is: Address {services: ServiceFlags(NETWORK_LIMITED), address: fd87:d87e:eb43::ffff:a00:1, port: 8333}"
         );

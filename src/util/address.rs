@@ -460,7 +460,7 @@ impl ::std::fmt::Debug for Address {
 mod tests {
     use core::str::FromStr;
 
-    use hashes::hex::{FromHex, ToHex};
+    use hashes::hex::{FromHex};
 
     use blockdata::script::Script;
     use network::constants::Network::Mainnet;
@@ -471,8 +471,6 @@ mod tests {
     macro_rules! hex (($hex:expr) => (Vec::from_hex($hex).unwrap()));
     macro_rules! hex_key (($hex:expr) => (PublicKey::from_slice(&hex!($hex)).unwrap()));
     macro_rules! hex_script (($hex:expr) => (Script::from(hex!($hex))));
-    // macro_rules! hex_pubkeyhash (($hex:expr) => (PubkeyHash::from_hex(&$hex).unwrap()));
-    // macro_rules! hex_scripthash (($hex:expr) => (ScriptHash::from_hex($hex).unwrap()));
 
     fn roundtrips(addr: &Address) {
         assert_eq!(
@@ -491,15 +489,14 @@ mod tests {
     }
 
     #[test]
-    fn test_p2wpkh() {
-        // stolen from Bitcoin transaction: b3c8c2b6cfc335abbcb2c7823a8453f55d64b2b5125a9a61e8737230cdb8ce20
-        let mut key =
-            hex_key!("033bc8c83c52df5712229a2f72206d90192366c36428cb0c12b6af98324d97bfbc");
+    fn test_it_should_match_mainnet_p2wpkh_address() {
+        let mut key = hex_key!("03f3e08754fac2440553927c5d97fa601997f46aba617efdbd3b50194d6cd415f6");
         let addr = Address::p2wpkh(&key, Mainnet).unwrap();
         assert_eq!(
             &addr.to_string(),
-            "bc1qvzvkjn4q3nszqxrv3nraga2r822xjty3ykvkuw"
+            "hs1qlyn9fe5kpj6kemls0y58l4wla7k6ghm7cj0mfq"
         );
+
         assert_eq!(addr.address_type(), Some(AddressType::P2wpkh));
         roundtrips(&addr);
 
@@ -542,142 +539,21 @@ mod tests {
     }
 
     #[test]
-    fn test_bip173_350_vectors() {
-        // Test vectors valid under both BIP-173 and BIP-350
-        let valid_vectors = [
-            ("BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4", "0014751e76e8199196d454941c45d1b3a323f1433bd6"),
-            // ("tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7", "00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262"),
-            // ("bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y", "5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6"),
-            // ("BC1SW50QGDZ25J", "6002751e"),
-            // ("bc1zw508d6qejxtdg4y5r3zarvaryvaxxpcs", "5210751e76e8199196d454941c45d1b3a323"),
-            // ("tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy", "0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433"),
-            // ("tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c", "5120000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433"),
-            // ("bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0", "512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798")
-        ];
-        for vector in &valid_vectors {
-            let addr: Address = vector.0.parse().unwrap();
-            assert_eq!(&addr.script_pubkey().as_bytes().to_hex(), vector.1);
-            roundtrips(&addr);
-        }
-
-        let invalid_vectors = [
-            // // 1. BIP-350 test vectors
-            // // Invalid human-readable part
-            "tc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq5zuyut",
-            // // Invalid checksums (Bech32 instead of Bech32m):
-            // "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqh2y7hd",
-            // "tb1z0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqglt7rf",
-            // "BC1S0XLXVLHEMJA6C4DQV22UAPCTQUPFHLXM9H8Z3K2E72Q4K9HCZ7VQ54WELL",
-            // "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kemeawh",
-            // "tb1q0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq24jc47",
-            // // Invalid character in checksum
-            // "bc1p38j9r5y49hruaue7wxjce0updqjuyyx0kh56v8s25huc6995vvpql3jow4",
-            // // Invalid witness version
-            // "BC130XLXVLHEMJA6C4DQV22UAPCTQUPFHLXM9H8Z3K2E72Q4K9HCZ7VQ7ZWS8R",
-            // // Invalid program length (1 byte)
-            // "bc1pw5dgrnzv",
-            // // Invalid program length (41 bytes)
-            // "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7v8n0nx0muaewav253zgeav",
-            // // Invalid program length for witness version 0 (per BIP141)
-            // "BC1QR508D6QEJXTDG4Y5R3ZARVARYV98GJ9P",
-            // // Mixed case
-            // "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47Zagq",
-            // // zero padding of more than 4 bits
-            // "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7v07qwwzcrf",
-            // // Non-zero padding in 8-to-5 conversion
-            // "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vpggkg4j",
-            // // Empty data section
-            // "bc1gmk9yu",
-            // // 2. BIP-173 test vectors
-            // // Invalid human-readable part
-            // "tc1qw508d6qejxtdg4y5r3zarvary0c5xw7kg3g4ty",
-            // // Invalid checksum
-            // "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t5",
-            // // Invalid witness version
-            // "BC13W508D6QEJXTDG4Y5R3ZARVARY0C5XW7KN40WF2",
-            // // Invalid program length
-            // "bc1rw5uspcuh",
-            // // Invalid program length
-            // "bc10w508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kw5rljs90",
-            // // Invalid program length for witness version 0 (per BIP141)
-            // "BC1QR508D6QEJXTDG4Y5R3ZARVARYV98GJ9P",
-            // // Mixed case
-            // "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sL5k7",
-            // // zero padding of more than 4 bits
-            // "bc1zw508d6qejxtdg4y5r3zarvaryvqyzf3du",
-            // // Non-zero padding in 8-to-5 conversion
-            // "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3pjxtptv",
-            // // Final test for empty data section is the same as above in BIP-350
-
-            // // 3. BIP-173 valid test vectors obsolete by BIP-350
-            // "bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx",
-            // "BC1SW50QA3JX3S",
-            // "bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj",
-        ];
-        for vector in &invalid_vectors {
-            assert!(vector.parse::<Address>().is_err());
-        }
-    }
-
-    #[test]
     #[cfg(feature = "serde")]
     fn test_json_serialize() {
         use serde_json;
 
-        let addr = Address::from_str("132F25rTsvBdp9JzLLBHP5mvGY66i1xdiM").unwrap();
+        let addr = Address::from_str("hs1q8vn02tnktq3tmztny8nysel6vtkuuy9k0whtty").unwrap();
         let json = serde_json::to_value(&addr).unwrap();
         assert_eq!(
             json,
-            serde_json::Value::String("132F25rTsvBdp9JzLLBHP5mvGY66i1xdiM".to_owned())
+            serde_json::Value::String("hs1q8vn02tnktq3tmztny8nysel6vtkuuy9k0whtty".to_owned())
         );
         let into: Address = serde_json::from_value(json).unwrap();
         assert_eq!(addr.to_string(), into.to_string());
         assert_eq!(
             into.script_pubkey(),
-            hex_script!("76a914162c5ea71c0b23f5b9022ef047c4a86470a5b07088ac")
-        );
-
-        let addr = Address::from_str("33iFwdLuRpW1uK1RTRqsoi8rR4NpDzk66k").unwrap();
-        let json = serde_json::to_value(&addr).unwrap();
-        assert_eq!(
-            json,
-            serde_json::Value::String("33iFwdLuRpW1uK1RTRqsoi8rR4NpDzk66k".to_owned())
-        );
-        let into: Address = serde_json::from_value(json).unwrap();
-        assert_eq!(addr.to_string(), into.to_string());
-        assert_eq!(
-            into.script_pubkey(),
-            hex_script!("a914162c5ea71c0b23f5b9022ef047c4a86470a5b07087")
-        );
-
-        let addr =
-            Address::from_str("tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7")
-                .unwrap();
-        let json = serde_json::to_value(&addr).unwrap();
-        assert_eq!(
-            json,
-            serde_json::Value::String(
-                "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7".to_owned()
-            )
-        );
-        let into: Address = serde_json::from_value(json).unwrap();
-        assert_eq!(addr.to_string(), into.to_string());
-        assert_eq!(
-            into.script_pubkey(),
-            hex_script!("00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262")
-        );
-
-        let addr = Address::from_str("bcrt1q2nfxmhd4n3c8834pj72xagvyr9gl57n5r94fsl").unwrap();
-        let json = serde_json::to_value(&addr).unwrap();
-        assert_eq!(
-            json,
-            serde_json::Value::String("bcrt1q2nfxmhd4n3c8834pj72xagvyr9gl57n5r94fsl".to_owned())
-        );
-        let into: Address = serde_json::from_value(json).unwrap();
-        assert_eq!(addr.to_string(), into.to_string());
-        assert_eq!(
-            into.script_pubkey(),
-            hex_script!("001454d26dddb59c7073c6a197946ea1841951fa7a74")
+            hex_script!("00143b26f52e765822bd897321e64867fa62edce10b6")
         );
     }
 

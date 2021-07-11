@@ -30,7 +30,8 @@ fn main() {
     let version_message = build_version_message(address);
 
     let first_message = message::RawNetworkMessage {
-        magic: constants::Network::Mainnet.magic(),
+        // magic: constants::Network::Mainnet.magic(),
+        magic: constants::Network::Regtest.magic(),
         payload: version_message,
     };
 
@@ -74,11 +75,8 @@ fn main() {
 }
 
 fn build_version_message(address: SocketAddr) -> message::NetworkMessage {
-    // Building version message, see https://en.bitcoin.it/wiki/Protocol_documentation#version
-    let my_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0);
-
     // "bitfield of features to be enabled for this connection"
-    let services = constants::ServiceFlags::NONE;
+    let services = constants::ServiceFlags::WITNESS;
 
     // "standard UNIX timestamp in seconds"
     let timestamp = SystemTime::now()
@@ -88,9 +86,6 @@ fn build_version_message(address: SocketAddr) -> message::NetworkMessage {
 
     // "The network address of the node receiving this message"
     let addr_recv = address::Address::new(&address, constants::ServiceFlags::NONE);
-
-    // "The network address of the node emitting this message"
-    let addr_from = address::Address::new(&my_address, constants::ServiceFlags::NONE);
 
     // "Node random nonce, randomly generated every time a version packet is sent. This nonce is used to detect connections to self."
     let nonce: u64 = secp256k1::rand::thread_rng().gen();
@@ -106,7 +101,6 @@ fn build_version_message(address: SocketAddr) -> message::NetworkMessage {
         services,
         timestamp as i64,
         addr_recv,
-        addr_from,
         nonce,
         user_agent,
         start_height,

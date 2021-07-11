@@ -16,7 +16,7 @@
 //! to avoid mixing data of the same hash format (like SHA256d) but of different meaning
 //! (transaction id, block hash etc).
 
-use hashes::{blake2b, hash160, sha256, Hash};
+use hashes::{blake2b, blake2b160, hash160, sha256, Hash};
 
 macro_rules! impl_hashencode {
     ($hashtype:ident) => {
@@ -81,7 +81,7 @@ hash_newtype!(
 );
 hash_newtype!(
     WPubkeyHash,
-    hash160::Hash,
+    blake2b160::Hash,
     20,
     doc = "SegWit version of a public key hash."
 );
