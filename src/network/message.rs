@@ -24,7 +24,7 @@ use std::borrow::Cow;
 
 use blockdata::block;
 use blockdata::transaction;
-use consensus::encode::{CheckedData, Decodable, Encodable, VarInt, MAX_VEC_SIZE};
+use consensus::encode::{ReadExt, Decodable, Encodable, VarInt, MAX_VEC_SIZE};
 use consensus::{encode, serialize};
 use io;
 use network::address::{AddrV2Message, Address};
@@ -108,8 +108,8 @@ pub struct RawNetworkMessage {
 }
 
 ///
-#[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(u8)]
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum PacketType {
     ///
     VERSION = 0,
@@ -180,6 +180,25 @@ pub enum PacketType {
     DATA = 32,
 }
 
+impl Encodable for PacketType {
+    fn consensus_encode<W: io::Write>(&self, writer: W) -> Result<usize, io::Error> {
+        (*self as u8).consensus_encode(writer)
+    }
+}
+
+impl Decodable for PacketType {
+    fn consensus_decode<D: io::Read>(d: D) -> Result<Self, encode::Error> {
+        let b = u8::consensus_decode(d)?;
+        println!("decoded command with #: {}", b);
+        return Ok(match b {
+            0 => PacketType::VERSION,
+            1 => PacketType::VERACK,
+            15 => PacketType::REJECT,
+            _ => PacketType::UNKNOWN,
+        })
+    }
+}
+
 /// A Network message payload. Proper documentation is available on at
 /// [Bitcoin Wiki: Protocol Specification](https://en.bitcoin.it/wiki/Protocol_specification)
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -248,7 +267,7 @@ pub enum NetworkMessage {
     /// Any other message.
     Unknown {
         /// The command of this message.
-        command: CommandString,
+        command: PacketType,
         /// The payload of this message.
         payload: Vec<u8>,
     },
@@ -278,6 +297,7 @@ impl NetworkMessage {
             NetworkMessage::GetAddr => PacketType::GETADDR,
             NetworkMessage::Ping(_) => PacketType::PING,
             NetworkMessage::Pong(_) => PacketType::PONG,
+            NetworkMessage::Reject(_) => PacketType::REJECT,
             // TODO - add missing
             // TODO - remove these
             NetworkMessage::GetCFilters(_) => PacketType::UNKNOWN,
@@ -287,7 +307,6 @@ impl NetworkMessage {
             NetworkMessage::GetCFCheckpt(_) => PacketType::UNKNOWN,
             NetworkMessage::CFCheckpt(_) => PacketType::UNKNOWN,
             NetworkMessage::Alert(_) => PacketType::UNKNOWN,
-            NetworkMessage::Reject(_) => PacketType::UNKNOWN,
             NetworkMessage::FeeFilter(_) => PacketType::UNKNOWN,
             NetworkMessage::WtxidRelay => PacketType::UNKNOWN,
             NetworkMessage::AddrV2(_) => PacketType::UNKNOWN,
@@ -414,45 +433,47 @@ impl Decodable for HeaderDeserializationWrapper {
 impl Decodable for RawNetworkMessage {
     fn consensus_decode<D: io::Read>(mut d: D) -> Result<Self, encode::Error> {
         let magic = Decodable::consensus_decode(&mut d)?;
-        let cmd = CommandString::consensus_decode(&mut d)?;
-        let raw_payload = CheckedData::consensus_decode(&mut d)?.0;
+        let cmd = PacketType::consensus_decode(&mut d)?;
+        let payload_len = u32::consensus_decode(&mut d)?;
+        let mut raw_payload = vec![0u8; payload_len as usize];
+        d.read_slice(&mut raw_payload)?;
 
         let mut mem_d = io::Cursor::new(raw_payload);
-        let payload = match &cmd.0[..] {
-            "version" => NetworkMessage::Version(Decodable::consensus_decode(&mut mem_d)?),
-            "verack" => NetworkMessage::Verack,
-            "addr" => NetworkMessage::Addr(Decodable::consensus_decode(&mut mem_d)?),
-            "inv" => NetworkMessage::Inv(Decodable::consensus_decode(&mut mem_d)?),
-            "getdata" => NetworkMessage::GetData(Decodable::consensus_decode(&mut mem_d)?),
-            "notfound" => NetworkMessage::NotFound(Decodable::consensus_decode(&mut mem_d)?),
-            "getblocks" => NetworkMessage::GetBlocks(Decodable::consensus_decode(&mut mem_d)?),
-            "getheaders" => NetworkMessage::GetHeaders(Decodable::consensus_decode(&mut mem_d)?),
-            "mempool" => NetworkMessage::MemPool,
-            "block" => NetworkMessage::Block(Decodable::consensus_decode(&mut mem_d)?),
-            "headers" => NetworkMessage::Headers(
-                HeaderDeserializationWrapper::consensus_decode(&mut mem_d)?.0,
-            ),
-            "sendheaders" => NetworkMessage::SendHeaders,
-            "getaddr" => NetworkMessage::GetAddr,
-            "ping" => NetworkMessage::Ping(Decodable::consensus_decode(&mut mem_d)?),
-            "pong" => NetworkMessage::Pong(Decodable::consensus_decode(&mut mem_d)?),
-            "tx" => NetworkMessage::Tx(Decodable::consensus_decode(&mut mem_d)?),
-            "getcfilters" => NetworkMessage::GetCFilters(Decodable::consensus_decode(&mut mem_d)?),
-            "cfilter" => NetworkMessage::CFilter(Decodable::consensus_decode(&mut mem_d)?),
-            "getcfheaders" => {
-                NetworkMessage::GetCFHeaders(Decodable::consensus_decode(&mut mem_d)?)
-            }
-            "cfheaders" => NetworkMessage::CFHeaders(Decodable::consensus_decode(&mut mem_d)?),
-            "getcfcheckpt" => {
-                NetworkMessage::GetCFCheckpt(Decodable::consensus_decode(&mut mem_d)?)
-            }
-            "cfcheckpt" => NetworkMessage::CFCheckpt(Decodable::consensus_decode(&mut mem_d)?),
-            "reject" => NetworkMessage::Reject(Decodable::consensus_decode(&mut mem_d)?),
-            "alert" => NetworkMessage::Alert(Decodable::consensus_decode(&mut mem_d)?),
-            "feefilter" => NetworkMessage::FeeFilter(Decodable::consensus_decode(&mut mem_d)?),
-            "wtxidrelay" => NetworkMessage::WtxidRelay,
-            "addrv2" => NetworkMessage::AddrV2(Decodable::consensus_decode(&mut mem_d)?),
-            "sendaddrv2" => NetworkMessage::SendAddrV2,
+        let payload = match cmd {
+            PacketType::VERSION => NetworkMessage::Version(Decodable::consensus_decode(&mut mem_d)?),
+            PacketType::VERACK => NetworkMessage::Verack,
+            // "addr" => NetworkMessage::Addr(Decodable::consensus_decode(&mut mem_d)?),
+            // "inv" => NetworkMessage::Inv(Decodable::consensus_decode(&mut mem_d)?),
+            // "getdata" => NetworkMessage::GetData(Decodable::consensus_decode(&mut mem_d)?),
+            // "notfound" => NetworkMessage::NotFound(Decodable::consensus_decode(&mut mem_d)?),
+            // "getblocks" => NetworkMessage::GetBlocks(Decodable::consensus_decode(&mut mem_d)?),
+            // "getheaders" => NetworkMessage::GetHeaders(Decodable::consensus_decode(&mut mem_d)?),
+            // "mempool" => NetworkMessage::MemPool,
+            // "block" => NetworkMessage::Block(Decodable::consensus_decode(&mut mem_d)?),
+            // "headers" => NetworkMessage::Headers(
+            //     HeaderDeserializationWrapper::consensus_decode(&mut mem_d)?.0,
+            // ),
+            // "sendheaders" => NetworkMessage::SendHeaders,
+            // "getaddr" => NetworkMessage::GetAddr,
+            // "ping" => NetworkMessage::Ping(Decodable::consensus_decode(&mut mem_d)?),
+            // "pong" => NetworkMessage::Pong(Decodable::consensus_decode(&mut mem_d)?),
+            // "tx" => NetworkMessage::Tx(Decodable::consensus_decode(&mut mem_d)?),
+            // "getcfilters" => NetworkMessage::GetCFilters(Decodable::consensus_decode(&mut mem_d)?),
+            // "cfilter" => NetworkMessage::CFilter(Decodable::consensus_decode(&mut mem_d)?),
+            // "getcfheaders" => {
+            //     NetworkMessage::GetCFHeaders(Decodable::consensus_decode(&mut mem_d)?)
+            // }
+            // "cfheaders" => NetworkMessage::CFHeaders(Decodable::consensus_decode(&mut mem_d)?),
+            // "getcfcheckpt" => {
+            //     NetworkMessage::GetCFCheckpt(Decodable::consensus_decode(&mut mem_d)?)
+            // }
+            // "cfcheckpt" => NetworkMessage::CFCheckpt(Decodable::consensus_decode(&mut mem_d)?),
+            PacketType::REJECT => NetworkMessage::Reject(Decodable::consensus_decode(&mut mem_d)?),
+            // "alert" => NetworkMessage::Alert(Decodable::consensus_decode(&mut mem_d)?),
+            // "feefilter" => NetworkMessage::FeeFilter(Decodable::consensus_decode(&mut mem_d)?),
+            // "wtxidrelay" => NetworkMessage::WtxidRelay,
+            // "addrv2" => NetworkMessage::AddrV2(Decodable::consensus_decode(&mut mem_d)?),
+            // "sendaddrv2" => NetworkMessage::SendAddrV2,
             _ => NetworkMessage::Unknown {
                 command: cmd,
                 payload: mem_d.into_inner(),
@@ -561,7 +582,7 @@ mod test {
             }),
             NetworkMessage::Alert(vec![45, 66, 3, 2, 6, 8, 9, 12, 3, 130]),
             NetworkMessage::Reject(Reject {
-                message: CommandString::try_from("Test reject").unwrap(),
+                message: PacketType::BLOCK,
                 ccode: RejectReason::Duplicate,
                 reason: "Cause".into(),
                 hash: hash([255u8; 32]),

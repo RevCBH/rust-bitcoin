@@ -1,6 +1,6 @@
 extern crate handshake;
 
-use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream};
+use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, process};
 use std::io::Write;
@@ -12,6 +12,8 @@ use handshake::secp256k1;
 use handshake::secp256k1::rand::Rng;
 
 fn main() {
+    let network = constants::Network::Regtest;
+
     // This example establishes a connection to a Bitcoin node, sends the intial
     // "version" message, waits for the reply, and finally closes the connection.
     let args: Vec<String> = env::args().collect();
@@ -30,8 +32,7 @@ fn main() {
     let version_message = build_version_message(address);
 
     let first_message = message::RawNetworkMessage {
-        // magic: constants::Network::Mainnet.magic(),
-        magic: constants::Network::Regtest.magic(),
+        magic: network.magic(),
         payload: version_message,
     };
 
@@ -51,7 +52,7 @@ fn main() {
                     println!("Received version message: {:?}", reply.payload);
 
                     let second_message = message::RawNetworkMessage {
-                        magic: constants::Network::Mainnet.magic(),
+                        magic: network.magic(),
                         payload: message::NetworkMessage::Verack,
                     };
 
@@ -60,6 +61,10 @@ fn main() {
                 }
                 message::NetworkMessage::Verack => {
                     println!("Received verack message: {:?}", reply.payload);
+                    // break;
+                }
+                message::NetworkMessage::Unknown {command , payload } => {
+                    println!("Received unknown command: {}", command as u8);
                     break;
                 }
                 _ => {
