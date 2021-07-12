@@ -24,7 +24,7 @@ use std::borrow::Cow;
 
 use blockdata::block;
 use blockdata::transaction;
-use consensus::encode::{ReadExt, Decodable, Encodable, VarInt, MAX_VEC_SIZE};
+use consensus::encode::{Decodable, Encodable, ReadExt, VarInt, MAX_VEC_SIZE};
 use consensus::{encode, serialize};
 use io;
 use network::address::{AddrV2Message, Address};
@@ -193,9 +193,12 @@ impl Decodable for PacketType {
         return Ok(match b {
             0 => PacketType::VERSION,
             1 => PacketType::VERACK,
+            2 => PacketType::PING,
+            3 => PacketType::PONG,
             15 => PacketType::REJECT,
+            22 => PacketType::SENDCMPCT,
             _ => PacketType::UNKNOWN,
-        })
+        });
     }
 }
 
@@ -255,6 +258,13 @@ pub enum NetworkMessage {
     Alert(Vec<u8>),
     /// `reject`
     Reject(message_network::Reject),
+    /// `sendcmpct`
+    SendCmpct {
+        /// TODO - doc
+        mode: u8,
+        /// TODO - doc
+        version: u64,
+    },
     /// `feefilter`
     FeeFilter(i64),
     /// `wtxidrelay`
@@ -298,6 +308,7 @@ impl NetworkMessage {
             NetworkMessage::Ping(_) => PacketType::PING,
             NetworkMessage::Pong(_) => PacketType::PONG,
             NetworkMessage::Reject(_) => PacketType::REJECT,
+            NetworkMessage::SendCmpct { .. } => PacketType::SENDCMPCT,
             // TODO - add missing
             // TODO - remove these
             NetworkMessage::GetCFilters(_) => PacketType::UNKNOWN,
@@ -381,6 +392,13 @@ impl Encodable for RawNetworkMessage {
             NetworkMessage::CFCheckpt(ref dat) => serialize(dat),
             NetworkMessage::Alert(ref dat) => serialize(dat),
             NetworkMessage::Reject(ref dat) => serialize(dat),
+            NetworkMessage::SendCmpct {
+                ref mode,
+                ref version,
+            } => {
+                serialize(mode);
+                serialize(version)
+            }
             NetworkMessage::FeeFilter(ref data) => serialize(data),
             NetworkMessage::AddrV2(ref dat) => serialize(dat),
             NetworkMessage::Verack
@@ -440,7 +458,9 @@ impl Decodable for RawNetworkMessage {
 
         let mut mem_d = io::Cursor::new(raw_payload);
         let payload = match cmd {
-            PacketType::VERSION => NetworkMessage::Version(Decodable::consensus_decode(&mut mem_d)?),
+            PacketType::VERSION => {
+                NetworkMessage::Version(Decodable::consensus_decode(&mut mem_d)?)
+            }
             PacketType::VERACK => NetworkMessage::Verack,
             // "addr" => NetworkMessage::Addr(Decodable::consensus_decode(&mut mem_d)?),
             // "inv" => NetworkMessage::Inv(Decodable::consensus_decode(&mut mem_d)?),
@@ -455,8 +475,8 @@ impl Decodable for RawNetworkMessage {
             // ),
             // "sendheaders" => NetworkMessage::SendHeaders,
             // "getaddr" => NetworkMessage::GetAddr,
-            // "ping" => NetworkMessage::Ping(Decodable::consensus_decode(&mut mem_d)?),
-            // "pong" => NetworkMessage::Pong(Decodable::consensus_decode(&mut mem_d)?),
+            PacketType::PING => NetworkMessage::Ping(Decodable::consensus_decode(&mut mem_d)?),
+            PacketType::PONG => NetworkMessage::Pong(Decodable::consensus_decode(&mut mem_d)?),
             // "tx" => NetworkMessage::Tx(Decodable::consensus_decode(&mut mem_d)?),
             // "getcfilters" => NetworkMessage::GetCFilters(Decodable::consensus_decode(&mut mem_d)?),
             // "cfilter" => NetworkMessage::CFilter(Decodable::consensus_decode(&mut mem_d)?),
@@ -469,6 +489,10 @@ impl Decodable for RawNetworkMessage {
             // }
             // "cfcheckpt" => NetworkMessage::CFCheckpt(Decodable::consensus_decode(&mut mem_d)?),
             PacketType::REJECT => NetworkMessage::Reject(Decodable::consensus_decode(&mut mem_d)?),
+            PacketType::SENDCMPCT => NetworkMessage::SendCmpct {
+                mode: Decodable::consensus_decode(&mut mem_d)?,
+                version: Decodable::consensus_decode(&mut mem_d)?,
+            },
             // "alert" => NetworkMessage::Alert(Decodable::consensus_decode(&mut mem_d)?),
             // "feefilter" => NetworkMessage::FeeFilter(Decodable::consensus_decode(&mut mem_d)?),
             // "wtxidrelay" => NetworkMessage::WtxidRelay,

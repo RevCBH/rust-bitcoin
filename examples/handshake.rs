@@ -61,9 +61,31 @@ fn main() {
                 }
                 message::NetworkMessage::Verack => {
                     println!("Received verack message: {:?}", reply.payload);
-                    // break;
                 }
-                message::NetworkMessage::Unknown {command , payload } => {
+                message::NetworkMessage::SendCmpct {version, mode} => {
+                    println!("Received sendcmpct with version: {}, mode: {}", version, mode);
+                }
+                message::NetworkMessage::Ping(id) => {
+                    println!("-> ping!");
+                    let pong_message = message::RawNetworkMessage {
+                        magic: network.magic(),
+                        payload: message::NetworkMessage::Pong(id)
+                    };
+
+                    let _ = stream.write_all(encode::serialize(&pong_message).as_slice());
+                    println!("<- pong!");
+
+                    let ping_message = message::RawNetworkMessage {
+                        magic: network.magic(),
+                        payload: message::NetworkMessage::Ping(id)
+                    };
+                    let _ = stream.write_all(encode::serialize(&ping_message).as_slice());
+                    println!("<- ping!");
+                }
+                message::NetworkMessage::Pong(id) => {
+                    println!("-> pong!");
+                }
+                message::NetworkMessage::Unknown {command , ..} => {
                     println!("Received unknown command: {}", command as u8);
                     break;
                 }
