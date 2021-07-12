@@ -1,18 +1,19 @@
 extern crate handshake;
 
+use std::io::Write;
 use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, process};
-use std::io::Write;
 
 use handshake::consensus::encode;
-use handshake::network::{address, constants, message, message_network};
 use handshake::network::stream_reader::StreamReader;
+use handshake::network::{address, constants, message, message_network};
 use handshake::secp256k1;
 use handshake::secp256k1::rand::Rng;
 
 fn main() {
     let network = constants::Network::Mainnet;
+    handshake::network::init(network);
 
     // This example establishes a connection to a Bitcoin node, sends the intial
     // "version" message, waits for the reply, and finally closes the connection.
@@ -62,35 +63,47 @@ fn main() {
                 message::NetworkMessage::Verack => {
                     println!("Received verack message: {:?}", reply.payload);
                 }
-                message::NetworkMessage::SendCmpct {version, mode} => {
-                    println!("Received sendcmpct with version: {}, mode: {}", version, mode);
+                message::NetworkMessage::SendCmpct { version, mode } => {
+                    println!(
+                        "Received sendcmpct with version: {}, mode: {}",
+                        version, mode
+                    );
                 }
                 message::NetworkMessage::Ping(id) => {
-                    println!("-> ping!");
+                    // println!("-> ping!");
                     let pong_message = message::RawNetworkMessage {
                         magic: network.magic(),
-                        payload: message::NetworkMessage::Pong(id)
+                        payload: message::NetworkMessage::Pong(id),
                     };
 
                     let _ = stream.write_all(encode::serialize(&pong_message).as_slice());
-                    println!("<- pong!");
+                    // println!("<- pong!");
 
                     let ping_message = message::RawNetworkMessage {
                         magic: network.magic(),
-                        payload: message::NetworkMessage::Ping(id)
+                        payload: message::NetworkMessage::Ping(id),
                     };
                     let _ = stream.write_all(encode::serialize(&ping_message).as_slice());
-                    println!("<- ping!");
+                    // println!("<- ping!");
                 }
                 message::NetworkMessage::Pong(_) => {
-                    println!("-> pong!");
+                    // println!("-> pong!");
                 }
                 message::NetworkMessage::Inv(items) => {
-                    for i in items {
+                    for i in items.clone() {
                         println!("+ Inventory {:?}", i);
                     }
+
+                    let getdata_message = message::RawNetworkMessage {
+                        magic: network.magic(),
+                        payload: message::NetworkMessage::GetData(items.clone()),
+                    };
+                    let _ = stream.write_all(encode::serialize(&getdata_message).as_slice());
                 }
-                message::NetworkMessage::Unknown {command , ..} => {
+                message::NetworkMessage::Tx(tx) => {
+                    println!("tx data: {:?}", tx);
+                }
+                message::NetworkMessage::Unknown { command, .. } => {
                     println!("Received unknown command: {}", command as u8);
                     // break;
                 }

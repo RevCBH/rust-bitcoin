@@ -18,9 +18,11 @@
 //! of Bitcoin data and network messages.
 //!
 
+extern crate state;
+
 use io;
 use core::fmt;
-use std::error;
+use std::{error, sync::RwLock};
 
 pub mod constants;
 
@@ -68,4 +70,11 @@ impl error::Error for Error {
             Error::SocketMutexPoisoned | Error::SocketNotConnectedToPeer => None,
         }
     }
+}
+
+static ACTIVE_NETWORK: state::Storage<RwLock<constants::Network>> = state::Storage::new();
+
+/// use_storage to set the network to use for deserializing Handshake addresses
+pub fn init(n: constants::Network) -> bool{
+    ACTIVE_NETWORK.set(RwLock::new(n))
 }

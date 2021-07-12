@@ -196,6 +196,7 @@ impl Decodable for PacketType {
             2 => PacketType::PING,
             3 => PacketType::PONG,
             6 => PacketType::INV,
+            14 => PacketType::TX,
             15 => PacketType::REJECT,
             22 => PacketType::SENDCMPCT,
             _ => PacketType::UNKNOWN,
@@ -478,7 +479,7 @@ impl Decodable for RawNetworkMessage {
             // "getaddr" => NetworkMessage::GetAddr,
             PacketType::PING => NetworkMessage::Ping(Decodable::consensus_decode(&mut mem_d)?),
             PacketType::PONG => NetworkMessage::Pong(Decodable::consensus_decode(&mut mem_d)?),
-            // "tx" => NetworkMessage::Tx(Decodable::consensus_decode(&mut mem_d)?),
+            PacketType::TX => NetworkMessage::Tx(Decodable::consensus_decode(&mut mem_d)?),
             // "getcfilters" => NetworkMessage::GetCFilters(Decodable::consensus_decode(&mut mem_d)?),
             // "cfilter" => NetworkMessage::CFilter(Decodable::consensus_decode(&mut mem_d)?),
             // "getcfheaders" => {

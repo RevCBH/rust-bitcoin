@@ -39,10 +39,13 @@
 //! assert_eq!(&bytes[..], &[0xF9, 0xBE, 0xB4, 0xD9]);
 //! ```
 
-use core::{fmt, ops, convert::From};
+use core::{convert::From, fmt, ops};
+use std::sync::RwLock;
 
+use consensus::encode::{self, Decodable, Encodable};
 use io;
-use consensus::encode::{self, Encodable, Decodable};
+
+use super::ACTIVE_NETWORK;
 
 /// Version of the protocol as appearing in network message headers
 /// This constant is used to signal to other peers which features you support.
@@ -79,7 +82,13 @@ user_enum! {
 
 impl Default for Network {
     fn default() -> Self {
-        return Network::Regtest
+        let inner =
+            |x: &RwLock<Network>| x.read().map(|x| x.clone()).ok().unwrap_or(Network::Regtest);
+
+        ACTIVE_NETWORK
+            .try_get()
+            .map(inner)
+            .unwrap_or(Network::Regtest)
     }
 }
 
@@ -101,7 +110,7 @@ impl Network {
             0xB1520DD2 => Some(Network::Testnet),
             0x0E648EDC => Some(Network::Simnet),
             0xAE3895CF => Some(Network::Regtest),
-            _ => None
+            _ => None,
         }
     }
 
@@ -121,7 +130,7 @@ impl Network {
         match self {
             Network::Mainnet => 0x5B6EF2D3,
             Network::Testnet => 0xB1520DD2,
-            Network::Simnet  => 0x0E648EDC,
+            Network::Simnet => 0x0E648EDC,
             Network::Regtest => 0xAE3895CF,
         }
     }
@@ -154,7 +163,7 @@ impl ServiceFlags {
     /// WITNESS indicates that a node can be asked for blocks and transactions including witness
     /// data.
     pub const WITNESS: ServiceFlags = ServiceFlags(1 << 3);
-    
+
     /// COMPACT_FILTERS means the node will service basic block filter requests.
     /// See BIP157 and BIP158 for details on how this is implemented.
     pub const COMPACT_FILTERS: ServiceFlags = ServiceFlags(1 << 6);
@@ -222,7 +231,7 @@ impl fmt::Display for ServiceFlags {
                     write!(f, stringify!($f))?;
                     flags.remove(ServiceFlags::$f);
                 }
-            }
+            };
         }
         write!(f, "ServiceFlags(")?;
         write_flag!(NETWORK);
@@ -284,10 +293,7 @@ impl ops::BitXorAssign for ServiceFlags {
 
 impl Encodable for ServiceFlags {
     #[inline]
-    fn consensus_encode<S: io::Write>(
-        &self,
-        mut s: S,
-    ) -> Result<usize, io::Error> {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
         self.0.consensus_encode(&mut s)
     }
 }
@@ -376,12 +382,15 @@ mod tests {
 
         let mut flags2 = flags | ServiceFlags::GETUTXO;
         for f in all.iter() {
-            assert_eq!(flags2.has(*f), *f == ServiceFlags::WITNESS || *f == ServiceFlags::GETUTXO);
+            assert_eq!(
+                flags2.has(*f),
+                *f == ServiceFlags::WITNESS || *f == ServiceFlags::GETUTXO
+            );
         }
 
         flags2 ^= ServiceFlags::WITNESS;
         assert_eq!(flags2, ServiceFlags::GETUTXO);
-        
+
         flags2 |= ServiceFlags::COMPACT_FILTERS;
         flags2 ^= ServiceFlags::GETUTXO;
         assert_eq!(flags2, ServiceFlags::COMPACT_FILTERS);
@@ -392,7 +401,9 @@ mod tests {
         let flag = ServiceFlags::WITNESS | ServiceFlags::BLOOM | ServiceFlags::NETWORK;
         assert_eq!("ServiceFlags(NETWORK|BLOOM|WITNESS)", flag.to_string());
         let flag = ServiceFlags::WITNESS | 0xf0.into();
-        assert_eq!("ServiceFlags(WITNESS|COMPACT_FILTERS|0xb0)", flag.to_string());
+        assert_eq!(
+            "ServiceFlags(WITNESS|COMPACT_FILTERS|0xb0)",
+            flag.to_string()
+        );
     }
 }
-
