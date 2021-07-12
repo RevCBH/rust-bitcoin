@@ -24,7 +24,7 @@ use hashes::sha256d;
 
 use network::constants;
 use consensus::encode::{self, Decodable, Encodable};
-use hash_types::{BlockHash, Txid, Wtxid};
+use hash_types::{BlockHash, Txid};
 
 /// An inventory item.
 #[derive(PartialEq, Eq, Clone, Debug, Copy, Hash, PartialOrd, Ord)]
@@ -35,12 +35,14 @@ pub enum Inventory {
     Transaction(Txid),
     /// Block
     Block(BlockHash),
-    /// Witness Transaction by Wtxid
-    WTx(Wtxid),
-    /// Witness Transaction
-    WitnessTransaction(Txid),
-    /// Witness Block
-    WitnessBlock(BlockHash),
+    /// Filtered Block
+    FilteredBlock(BlockHash),
+    /// Compact Block
+    CmpctBlock(BlockHash),
+    /// Name Claim
+    Claim([u8; 32]),
+    /// Airdrop Claim
+    Airdrop([u8; 32]),
     /// Unknown inventory type
     Unknown {
         /// The inventory item type.
@@ -66,9 +68,10 @@ impl Encodable for Inventory {
             Inventory::Error => encode_inv!(0, sha256d::Hash::default()),
             Inventory::Transaction(ref t) => encode_inv!(1, t),
             Inventory::Block(ref b) => encode_inv!(2, b),
-            Inventory::WTx(w) => encode_inv!(5, w),
-            Inventory::WitnessTransaction(ref t) => encode_inv!(0x40000001, t),
-            Inventory::WitnessBlock(ref b) => encode_inv!(0x40000002, b),
+            Inventory::FilteredBlock(ref b) => encode_inv!(3, b),
+            Inventory::CmpctBlock(ref b) => encode_inv!(4, b),
+            Inventory::Claim(ref c) => encode_inv!(5, c),
+            Inventory::Airdrop(ref a) => encode_inv!(6, a),
             Inventory::Unknown { inv_type: t, hash: ref d } => encode_inv!(t, d),
         })
     }
@@ -82,9 +85,10 @@ impl Decodable for Inventory {
             0 => Inventory::Error,
             1 => Inventory::Transaction(Decodable::consensus_decode(&mut d)?),
             2 => Inventory::Block(Decodable::consensus_decode(&mut d)?),
-            5 => Inventory::WTx(Decodable::consensus_decode(&mut d)?),
-            0x40000001 => Inventory::WitnessTransaction(Decodable::consensus_decode(&mut d)?),
-            0x40000002 => Inventory::WitnessBlock(Decodable::consensus_decode(&mut d)?),
+            3 => Inventory::FilteredBlock(Decodable::consensus_decode(&mut d)?),
+            4 => Inventory::CmpctBlock(Decodable::consensus_decode(&mut d)?),
+            5 => Inventory::Claim(Decodable::consensus_decode(&mut d)?),
+            6 => Inventory::Airdrop(Decodable::consensus_decode(&mut d)?),
             tp => Inventory::Unknown {
                 inv_type: tp,
                 hash: Decodable::consensus_decode(&mut d)?,

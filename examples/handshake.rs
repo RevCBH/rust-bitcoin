@@ -12,7 +12,7 @@ use handshake::secp256k1;
 use handshake::secp256k1::rand::Rng;
 
 fn main() {
-    let network = constants::Network::Regtest;
+    let network = constants::Network::Mainnet;
 
     // This example establishes a connection to a Bitcoin node, sends the intial
     // "version" message, waits for the reply, and finally closes the connection.
@@ -82,16 +82,21 @@ fn main() {
                     let _ = stream.write_all(encode::serialize(&ping_message).as_slice());
                     println!("<- ping!");
                 }
-                message::NetworkMessage::Pong(id) => {
+                message::NetworkMessage::Pong(_) => {
                     println!("-> pong!");
+                }
+                message::NetworkMessage::Inv(items) => {
+                    for i in items {
+                        println!("+ Inventory {:?}", i);
+                    }
                 }
                 message::NetworkMessage::Unknown {command , ..} => {
                     println!("Received unknown command: {}", command as u8);
-                    break;
+                    // break;
                 }
                 _ => {
                     println!("Received unknown message: {:?}", reply.payload);
-                    break;
+                    // break;
                 }
             }
         }

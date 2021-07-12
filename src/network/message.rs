@@ -195,6 +195,7 @@ impl Decodable for PacketType {
             1 => PacketType::VERACK,
             2 => PacketType::PING,
             3 => PacketType::PONG,
+            6 => PacketType::INV,
             15 => PacketType::REJECT,
             22 => PacketType::SENDCMPCT,
             _ => PacketType::UNKNOWN,
@@ -463,7 +464,7 @@ impl Decodable for RawNetworkMessage {
             }
             PacketType::VERACK => NetworkMessage::Verack,
             // "addr" => NetworkMessage::Addr(Decodable::consensus_decode(&mut mem_d)?),
-            // "inv" => NetworkMessage::Inv(Decodable::consensus_decode(&mut mem_d)?),
+            PacketType::INV => NetworkMessage::Inv(Decodable::consensus_decode(&mut mem_d)?),
             // "getdata" => NetworkMessage::GetData(Decodable::consensus_decode(&mut mem_d)?),
             // "notfound" => NetworkMessage::NotFound(Decodable::consensus_decode(&mut mem_d)?),
             // "getblocks" => NetworkMessage::GetBlocks(Decodable::consensus_decode(&mut mem_d)?),
